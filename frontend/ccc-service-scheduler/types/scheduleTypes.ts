@@ -7,6 +7,7 @@ export type OfficiantAssignment = {
 export type DaySchedule = {
   dayOfWeek: string;
   date: string; // YYYY-MM-DD
+  time?: string | null; // 1000
   serviceType?: string;
   officiants: OfficiantAssignment[];
 };
@@ -26,4 +27,9 @@ export type ScheduleWeekSummary = {
   endDate: string;
   month: string;
   year: string;
+};
+
+export type ScheduleViewDisplayProps = {
+  schedule: ScheduleWeekDetail;
+  onClose: () => void;
 };

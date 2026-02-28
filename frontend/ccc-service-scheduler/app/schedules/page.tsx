@@ -6,7 +6,7 @@ import ScheduleViewDisplay from '@/components/ViewScheduleButton/ScheduleViewDis
 import type {
     ScheduleWeekDetail,
     ScheduleWeekSummary,
-} from '@/components/ViewScheduleButton/scheduleTypes';
+} from '@/types/scheduleTypes';
 
 // Mock data: replace with API call when backend provides schedules endpoints
 const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
@@ -20,6 +20,7 @@ const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
             {
                 dayOfWeek: 'Sunday',
                 date: '2026-01-05',
+                time: '10:00',
                 serviceType: 'Devotional Service',
                 officiants: [
                     { role: 'Usher', personName: 'John Doe' },
@@ -29,6 +30,7 @@ const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
             {
                 dayOfWeek: 'Wednesday',
                 date: '2026-01-08',
+                time: '18:00',
                 serviceType: 'Mercy Day Service',
                 officiants: [
                     { role: 'Usher', personName: 'Jane Smith' },
@@ -38,6 +40,7 @@ const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
             {
                 dayOfWeek: 'Friday',
                 date: '2026-01-10',
+                time: '18:00',
                 serviceType: 'Power Day Service',
                 officiants: [
                     { role: 'Usher', personName: 'Jane Smith' },
@@ -128,6 +131,7 @@ const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
             {
                 dayOfWeek: 'Sunday',
                 date: '2026-02-02',
+                time: '10:00',
                 serviceType: 'Devotional Service',
                 officiants: [
                     { role: 'Usher', personName: 'Jane Smith' },

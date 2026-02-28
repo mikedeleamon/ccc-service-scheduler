@@ -4,19 +4,9 @@ import { useMemo, useState } from 'react';
 import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
 import ViewScheduleButton from '@/components/ViewScheduleButton/ViewScheduleButton';
 import AddPersonButton from '@/components/AddPersonButton/AddPersonButton';
-
-type Person = {
-    id: number;
-    first_name: string;
-    last_name: string;
-    birth_date?: string | null; // YYYY-MM-DD
-    gender: string;
-    phone: string;
-    parish?: string | null;
-    email?: string | null;
-    rank: string;
-    availability?: unknown;
-};
+import { Rank, RANKS_BY_GENDER } from '@/constants/rank';
+import { Gender } from '@/constants/gender';
+import { Person, PersonEditProps } from '@/types/types';
 
 // Mock data until backend exposes a people endpoint.
 const MOCK_PEOPLE: Person[] = [
@@ -25,7 +15,7 @@ const MOCK_PEOPLE: Person[] = [
         first_name: 'John',
         last_name: 'Doe',
         birth_date: '1990-04-12',
-        gender: 'male',
+        gender: 'Male',
         phone: '+1 (555) 111-2222',
         parish: 'CCC Parish A',
         email: 'john.doe@example.com',
@@ -37,7 +27,7 @@ const MOCK_PEOPLE: Person[] = [
         first_name: 'Jane',
         last_name: 'Smith',
         birth_date: '1994-09-03',
-        gender: 'female',
+        gender: 'Female',
         phone: '+1 (555) 333-4444',
         parish: 'CCC Parish A',
         email: 'jane.smith@example.com',
@@ -55,7 +45,23 @@ function formatAvailability(availability: unknown): string {
         return String(availability);
     }
 }
+function calculateAge(birthDate?: string | null): number | null {
+    if (!birthDate) return null;
 
+    const today = new Date();
+    const dob = new Date(birthDate);
+
+    if (isNaN(dob.getTime())) return null;
+
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+
+    return age;
+}
 function fullName(p: Person): string {
     return `${p.first_name} ${p.last_name}`;
 }
@@ -107,10 +113,10 @@ type PersonDetailsProps = {
 
 function PersonDetailsModal({ person, onClose }: PersonDetailsProps) {
     const rows: Array<{ label: string; value: React.ReactNode }> = [
-        // { label: 'id', value: person.id },
         { label: 'First Name', value: person.first_name },
         { label: 'Last Name', value: person.last_name },
         { label: 'Birth Date', value: person.birth_date ?? '—' },
+        { label: 'Age', value: calculateAge(person.birth_date) },
         { label: 'Gender', value: person.gender },
         { label: 'Phone', value: person.phone },
         { label: 'Parish', value: person.parish ?? '—' },
@@ -150,13 +156,8 @@ function PersonDetailsModal({ person, onClose }: PersonDetailsProps) {
     );
 }
 
-type PersonEditProps = {
-    person: Person;
-    onClose: () => void;
-    onSave: (updated: Person) => void;
-};
-
 function PersonEditModal({ person, onClose, onSave }: PersonEditProps) {
+    //const age = calculateAge(person.birth_date);
     const [draft, setDraft] = useState<Person>({ ...person });
     const [availabilityText, setAvailabilityText] = useState(() =>
         draft.availability == null
@@ -253,6 +254,7 @@ function PersonEditModal({ person, onClose, onSave }: PersonEditProps) {
                             Birth Date
                         </label>
                         <input
+                            type='date'
                             value={draft.birth_date ?? ''}
                             onChange={(e) =>
                                 update('birth_date', e.target.value)
@@ -266,11 +268,18 @@ function PersonEditModal({ person, onClose, onSave }: PersonEditProps) {
                         <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
                             Gender
                         </label>
-                        <input
+
+                        <select
                             value={draft.gender}
                             onChange={(e) => update('gender', e.target.value)}
                             className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
+                        >
+                            <option value=''>Select gender</option>
+                            <option value={Gender.MALE}>{Gender.MALE}</option>
+                            <option value={Gender.FEMALE}>
+                                {Gender.FEMALE}
+                            </option>
+                        </select>
                     </div>
 
                     <div className='space-y-1'>
@@ -310,11 +319,26 @@ function PersonEditModal({ person, onClose, onSave }: PersonEditProps) {
                         <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
                             Rank
                         </label>
-                        <input
+                        <select
                             value={draft.rank}
-                            onChange={(e) => update('rank', e.target.value)}
+                            onChange={(e) =>
+                                update('rank', e.target.value as Rank)
+                            }
+                            disabled={!draft.gender}
                             className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
+                        >
+                            <option value=''>Select rank</option>
+
+                            {draft.gender &&
+                                RANKS_BY_GENDER[draft.gender].map((rank) => (
+                                    <option
+                                        key={rank}
+                                        value={rank}
+                                    >
+                                        {rank}
+                                    </option>
+                                ))}
+                        </select>
                     </div>
 
                     <div className='space-y-1 sm:col-span-2'>
