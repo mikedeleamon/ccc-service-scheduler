@@ -1,6 +1,7 @@
 import AutoScheduleButton from '@/components/AutoScheduleButton/AutoScheduleButton';
 import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
 import ViewScheduleButton from '@/components/ViewScheduleButton/ViewScheduleButton';
+import ViewRosterButton from '@/components/ViewRosterButton/ViewRosterButton';
 
 export default function Home() {
     return (
@@ -31,6 +32,7 @@ export default function Home() {
                     <AutoScheduleButton />
                     <UploadSheetButton />
                     <ViewScheduleButton />
+                    <ViewRosterButton />
                 </div>
             </main>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import AutoScheduleButton from '@/components/AutoScheduleButton/AutoScheduleButton';
 import ScheduleViewDisplay from '@/components/ViewScheduleButton/ScheduleViewDisplay';
 import type {
     ScheduleWeekDetail,
@@ -383,6 +384,9 @@ export default function ServicesPage() {
                     <p className='text-zinc-600 dark:text-zinc-400'>
                         Select a week to view the schedule grouped by day.
                     </p>
+                    <div className='pt-2'>
+                        <AutoScheduleButton />
+                    </div>
                 </header>
 
                 <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
