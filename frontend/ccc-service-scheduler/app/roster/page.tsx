@@ -1,6 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
+import BackButton from '@/components/BackButton/BackButton';
 import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
 import ViewScheduleButton from '@/components/ViewScheduleButton/ViewScheduleButton';
 import AddPersonButton from '@/components/AddPersonButton/AddPersonButton';
@@ -425,6 +428,7 @@ function DeleteConfirmModal({
 }
 
 export default function RosterPage() {
+    const router = useRouter();
     const [people, setPeople] = useState<Person[]>(MOCK_PEOPLE);
     const [viewing, setViewing] = useState<Person | null>(null);
     const [editing, setEditing] = useState<Person | null>(null);
@@ -497,167 +501,180 @@ export default function RosterPage() {
     };
 
     return (
-        <div className='flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black'>
-            <main className='flex min-h-screen w-full max-w-6xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black'>
-                <header className='space-y-2'>
-                    <h1 className='text-3xl font-semibold tracking-tight text-black dark:text-zinc-50'>
-                        Roster
-                    </h1>
-                    <p className='text-zinc-600 dark:text-zinc-400'>
-                        Individuals who can officiate services.
-                    </p>
-                    <div className='flex flex-col gap-3 pt-2 sm:flex-row'>
-                        <UploadSheetButton />
-                        <ViewScheduleButton />
-                        <AddPersonButton onClick={handleAddPerson} />
-                    </div>
-                </header>
+        <SidebarLayout>
+            <div className='flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black'>
+                <BackButton />
+                <main className='flex min-h-screen w-full max-w-6xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black'>
+                    <header className='space-y-2'>
+                        <h1 className='text-3xl font-semibold tracking-tight text-black dark:text-zinc-50'>
+                            Roster
+                        </h1>
+                        <p className='text-zinc-600 dark:text-zinc-400'>
+                            Individuals who can officiate services.
+                        </p>
+                        <div className='flex flex-col gap-3 pt-2 sm:flex-row'>
+                            <UploadSheetButton />
+                            <ViewScheduleButton />
+                            <AddPersonButton onClick={handleAddPerson} />
+                        </div>
+                    </header>
 
-                <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
-                    <table className='w-full min-w-[900px] text-left text-sm text-zinc-800 dark:text-zinc-200'>
-                        <thead>
-                            <tr className='border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800'>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Name
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Gender
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Rank
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Phone
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Availability
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Details
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pageRows.map((p) => (
-                                <tr
-                                    key={p.id}
-                                    className='border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                                >
-                                    <td className='px-4 py-3 font-medium'>
-                                        {fullName(p)}
-                                    </td>
-                                    <td className='px-4 py-3'>{p.gender}</td>
-                                    <td className='px-4 py-3'>{p.rank}</td>
-                                    <td className='px-4 py-3'>{p.phone}</td>
-                                    <td className='px-4 py-3 max-w-[320px]'>
-                                        <span className='block truncate font-mono text-xs text-zinc-600 dark:text-zinc-400'>
-                                            {formatAvailability(p.availability)}
-                                        </span>
-                                    </td>
-                                    <td className='px-4 py-3'>
-                                        <button
-                                            type='button'
-                                            onClick={() => setViewing(p)}
-                                            className='rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700'
-                                        >
-                                            View details
-                                        </button>
-                                    </td>
-                                    <td className='px-4 py-3'>
-                                        <div className='flex flex-wrap items-center gap-2'>
-                                            <button
-                                                type='button'
-                                                onClick={() => setEditing(p)}
-                                                className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                type='button'
-                                                onClick={() => setDeleting(p)}
-                                                className='rounded border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:bg-zinc-900 dark:text-red-200 dark:hover:bg-red-900/20'
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </td>
+                    <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
+                        <table className='w-full min-w-[900px] text-left text-sm text-zinc-800 dark:text-zinc-200'>
+                            <thead>
+                                <tr className='border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800'>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Name
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Gender
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Rank
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Phone
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Availability
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Details
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {pageRows.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className='px-4 py-8 text-center text-zinc-500 dark:text-zinc-400'
+                            </thead>
+                            <tbody>
+                                {pageRows.map((p) => (
+                                    <tr
+                                        key={p.id}
+                                        className='border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                                     >
-                                        No people found.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {showPagination && (
-                    <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                        <div className='text-sm text-zinc-600 dark:text-zinc-400'>
-                            Showing {(safePage - 1) * pageSize + 1}–
-                            {Math.min(safePage * pageSize, totalRows)} of{' '}
-                            {totalRows}
-                        </div>
-                        <div className='flex items-center gap-2'>
-                            <button
-                                type='button'
-                                onClick={() =>
-                                    setPage((p) => Math.max(1, p - 1))
-                                }
-                                disabled={safePage === 1}
-                                className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                            >
-                                Prev
-                            </button>
-                            <div className='text-sm text-zinc-700 dark:text-zinc-300'>
-                                Page {safePage} of {totalPages}
-                            </div>
-                            <button
-                                type='button'
-                                onClick={() =>
-                                    setPage((p) => Math.min(totalPages, p + 1))
-                                }
-                                disabled={safePage === totalPages}
-                                className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                            >
-                                Next
-                            </button>
-                        </div>
+                                        <td className='px-4 py-3 font-medium'>
+                                            {fullName(p)}
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            {p.gender}
+                                        </td>
+                                        <td className='px-4 py-3'>{p.rank}</td>
+                                        <td className='px-4 py-3'>{p.phone}</td>
+                                        <td className='px-4 py-3 max-w-[320px]'>
+                                            <span className='block truncate font-mono text-xs text-zinc-600 dark:text-zinc-400'>
+                                                {formatAvailability(
+                                                    p.availability,
+                                                )}
+                                            </span>
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            <button
+                                                type='button'
+                                                onClick={() => setViewing(p)}
+                                                className='rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700'
+                                            >
+                                                View details
+                                            </button>
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            <div className='flex flex-wrap items-center gap-2'>
+                                                <button
+                                                    type='button'
+                                                    onClick={() =>
+                                                        setEditing(p)
+                                                    }
+                                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type='button'
+                                                    onClick={() =>
+                                                        setDeleting(p)
+                                                    }
+                                                    className='rounded border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:bg-zinc-900 dark:text-red-200 dark:hover:bg-red-900/20'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {pageRows.length === 0 && (
+                                    <tr>
+                                        <td
+                                            colSpan={7}
+                                            className='px-4 py-8 text-center text-zinc-500 dark:text-zinc-400'
+                                        >
+                                            No people found.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
-                )}
 
-                {viewing && (
-                    <PersonDetailsModal
-                        person={viewing}
-                        onClose={() => setViewing(null)}
-                    />
-                )}
+                    {showPagination && (
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='text-sm text-zinc-600 dark:text-zinc-400'>
+                                Showing {(safePage - 1) * pageSize + 1}–
+                                {Math.min(safePage * pageSize, totalRows)} of{' '}
+                                {totalRows}
+                            </div>
+                            <div className='flex items-center gap-2'>
+                                <button
+                                    type='button'
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
+                                    disabled={safePage === 1}
+                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                                >
+                                    Prev
+                                </button>
+                                <div className='text-sm text-zinc-700 dark:text-zinc-300'>
+                                    Page {safePage} of {totalPages}
+                                </div>
+                                <button
+                                    type='button'
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
+                                    disabled={safePage === totalPages}
+                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
-                {editing && (
-                    <PersonEditModal
-                        person={editing}
-                        onClose={() => setEditing(null)}
-                        onSave={handleSave}
-                    />
-                )}
+                    {viewing && (
+                        <PersonDetailsModal
+                            person={viewing}
+                            onClose={() => setViewing(null)}
+                        />
+                    )}
 
-                {deleting && (
-                    <DeleteConfirmModal
-                        person={deleting}
-                        onCancel={() => setDeleting(null)}
-                        onConfirm={confirmDelete}
-                    />
-                )}
-            </main>
-        </div>
+                    {editing && (
+                        <PersonEditModal
+                            person={editing}
+                            onClose={() => setEditing(null)}
+                            onSave={handleSave}
+                        />
+                    )}
+
+                    {deleting && (
+                        <DeleteConfirmModal
+                            person={deleting}
+                            onCancel={() => setDeleting(null)}
+                            onConfirm={confirmDelete}
+                        />
+                    )}
+                </main>
+            </div>
+        </SidebarLayout>
     );
 }

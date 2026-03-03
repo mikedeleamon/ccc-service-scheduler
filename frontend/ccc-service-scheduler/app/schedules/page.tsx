@@ -1,12 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import AutoScheduleButton from '@/components/AutoScheduleButton/AutoScheduleButton';
 import ScheduleViewDisplay from '@/components/ViewScheduleButton/ScheduleViewDisplay';
 import type {
     ScheduleWeekDetail,
     ScheduleWeekSummary,
 } from '@/types/scheduleTypes';
+import BackButton from '@/components/BackButton/BackButton';
 
 // Mock data: replace with API call when backend provides schedules endpoints
 const MOCK_SCHEDULES: ScheduleWeekDetail[] = [
@@ -345,6 +348,7 @@ function formatDateRange(start: string, end: string): string {
 }
 
 export default function ServicesPage() {
+    const router = useRouter();
     const [viewingSchedule, setViewingSchedule] =
         useState<ScheduleWeekDetail | null>(null);
     const [page, setPage] = useState(1);
@@ -379,109 +383,120 @@ export default function ServicesPage() {
     };
 
     return (
-        <div className='flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black'>
-            <main className='flex min-h-screen w-full max-w-5xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black'>
-                <header className='space-y-2'>
-                    <h1 className='text-3xl font-semibold tracking-tight text-black dark:text-zinc-50'>
-                        Schedules
-                    </h1>
-                    <p className='text-zinc-600 dark:text-zinc-400'>
-                        Select a week to view the schedule grouped by day.
-                    </p>
-                    <div className='pt-2'>
-                        <AutoScheduleButton />
-                    </div>
-                </header>
+        <SidebarLayout>
+            <div className='flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black'>
+                <BackButton />
+                <main className='flex min-h-screen w-full max-w-5xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black'>
+                    <header className='space-y-2'>
+                        <h1 className='text-3xl font-semibold tracking-tight text-black dark:text-zinc-50'>
+                            Schedules
+                        </h1>
+                        <p className='text-zinc-600 dark:text-zinc-400'>
+                            Select a week to view the schedule grouped by day.
+                        </p>
+                        <div className='pt-2'>
+                            <AutoScheduleButton />
+                        </div>
+                    </header>
 
-                <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
-                    <table className='w-full min-w-[520px] text-left text-sm text-zinc-800 dark:text-zinc-200'>
-                        <thead>
-                            <tr className='border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800'>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Date
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Month
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Year
-                                </th>
-                                <th className='px-4 py-3 font-semibold'>
-                                    Action
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pageRows.map((row) => (
-                                <tr
-                                    key={row.id}
-                                    className='border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                                >
-                                    <td className='px-4 py-3'>
-                                        {formatDateRange(
-                                            row.startDate,
-                                            row.endDate,
-                                        )}
-                                    </td>
-                                    <td className='px-4 py-3'>{row.month}</td>
-                                    <td className='px-4 py-3'>{row.year}</td>
-                                    <td className='px-4 py-3'>
-                                        <button
-                                            type='button'
-                                            onClick={() => handleView(row.id)}
-                                            className='rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700'
-                                        >
-                                            View schedule
-                                        </button>
-                                    </td>
+                    <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
+                        <table className='w-full min-w-[520px] text-left text-sm text-zinc-800 dark:text-zinc-200'>
+                            <thead>
+                                <tr className='border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800'>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Date
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Month
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Year
+                                    </th>
+                                    <th className='px-4 py-3 font-semibold'>
+                                        Action
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {showPagination && (
-                    <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                        <div className='text-sm text-zinc-600 dark:text-zinc-400'>
-                            Showing {(safePage - 1) * pageSize + 1}–
-                            {Math.min(safePage * pageSize, totalRows)} of{' '}
-                            {totalRows}
-                        </div>
-                        <div className='flex items-center gap-2'>
-                            <button
-                                type='button'
-                                onClick={() =>
-                                    setPage((p) => Math.max(1, p - 1))
-                                }
-                                disabled={safePage === 1}
-                                className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                            >
-                                Prev
-                            </button>
-                            <div className='text-sm text-zinc-700 dark:text-zinc-300'>
-                                Page {safePage} of {totalPages}
-                            </div>
-                            <button
-                                type='button'
-                                onClick={() =>
-                                    setPage((p) => Math.min(totalPages, p + 1))
-                                }
-                                disabled={safePage === totalPages}
-                                className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                            >
-                                Next
-                            </button>
-                        </div>
+                            </thead>
+                            <tbody>
+                                {pageRows.map((row) => (
+                                    <tr
+                                        key={row.id}
+                                        className='border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                                    >
+                                        <td className='px-4 py-3'>
+                                            {formatDateRange(
+                                                row.startDate,
+                                                row.endDate,
+                                            )}
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            {row.month}
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            {row.year}
+                                        </td>
+                                        <td className='px-4 py-3'>
+                                            <button
+                                                type='button'
+                                                onClick={() =>
+                                                    handleView(row.id)
+                                                }
+                                                className='rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700'
+                                            >
+                                                View schedule
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                )}
 
-                {viewingSchedule && (
-                    <ScheduleViewDisplay
-                        schedule={viewingSchedule}
-                        onClose={() => setViewingSchedule(null)}
-                    />
-                )}
-            </main>
-        </div>
+                    {showPagination && (
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='text-sm text-zinc-600 dark:text-zinc-400'>
+                                Showing {(safePage - 1) * pageSize + 1}–
+                                {Math.min(safePage * pageSize, totalRows)} of{' '}
+                                {totalRows}
+                            </div>
+                            <div className='flex items-center gap-2'>
+                                <button
+                                    type='button'
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
+                                    disabled={safePage === 1}
+                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                                >
+                                    Prev
+                                </button>
+                                <div className='text-sm text-zinc-700 dark:text-zinc-300'>
+                                    Page {safePage} of {totalPages}
+                                </div>
+                                <button
+                                    type='button'
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
+                                    disabled={safePage === totalPages}
+                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {viewingSchedule && (
+                        <ScheduleViewDisplay
+                            schedule={viewingSchedule}
+                            onClose={() => setViewingSchedule(null)}
+                        />
+                    )}
+                </main>
+            </div>
+        </SidebarLayout>
     );
 }
