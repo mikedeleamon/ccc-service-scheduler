@@ -10,34 +10,9 @@ import AddPersonButton from '@/components/AddPersonButton/AddPersonButton';
 import { Rank, RANKS_BY_GENDER } from '@/constants/rank';
 import { Gender } from '@/constants/gender';
 import { Person, PersonEditProps } from '@/types/types';
+import { MOCK_PEOPLE as IMPORTED_MOCK } from '@/lib/mockPeople';
 
-// Mock data until backend exposes a people endpoint.
-const MOCK_PEOPLE: Person[] = [
-    {
-        id: 1,
-        first_name: 'John',
-        last_name: 'Doe',
-        birth_date: '1990-04-12',
-        gender: 'Male',
-        phone: '+1 (555) 111-2222',
-        parish: 'CCC Parish A',
-        email: 'john.doe@example.com',
-        rank: 'superior evangelist',
-        availability: { sundays: true, wednesdays: true },
-    },
-    {
-        id: 2,
-        first_name: 'Jane',
-        last_name: 'Smith',
-        birth_date: '1994-09-03',
-        gender: 'Female',
-        phone: '+1 (555) 333-4444',
-        parish: 'CCC Parish A',
-        email: 'jane.smith@example.com',
-        rank: 'cape elder sister',
-        availability: { sundays: true, wednesdays: false },
-    },
-];
+const MOCK_PEOPLE: Person[] = IMPORTED_MOCK;
 
 function formatAvailability(availability: unknown): string {
     if (availability == null) return '—';

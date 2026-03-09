@@ -9,7 +9,7 @@ export enum Rank {
     CAPE_ELDER_BROTHER = 'Cape Elder Brother',
     BROTHER = 'Brother',
     SISTER = 'Sister',
-    EVANGELIST = 'Assistant Evangelist',
+    EVANGELIST = 'Evangelist',
 }
 
 export const RANKS_BY_GENDER: Record<Gender, Rank[]> = {
@@ -20,7 +20,6 @@ export const RANKS_BY_GENDER: Record<Gender, Rank[]> = {
         Rank.SUPERIOR_EVANGELIST,
         Rank.CAPE_ELDER_BROTHER,
         Rank.BROTHER,
-        Rank.ASSISTANT_EVANGELIST,
     ],
     [Gender.FEMALE]: [
         Rank.MOTHER_CELESTIAL,
