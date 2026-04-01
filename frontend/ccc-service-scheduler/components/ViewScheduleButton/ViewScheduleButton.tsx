@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { btnPrimary } from '@/lib/ui';
 
 export default function ViewScheduleButton() {
     const router = useRouter();
@@ -9,7 +10,7 @@ export default function ViewScheduleButton() {
         <button
             type='button'
             onClick={() => router.push('/schedules')}
-            className='rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700'
+            className={btnPrimary}
         >
             View schedules
         </button>

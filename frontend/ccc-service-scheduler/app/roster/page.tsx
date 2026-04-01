@@ -1,16 +1,31 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import BackButton from '@/components/BackButton/BackButton';
 import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
 import ViewScheduleButton from '@/components/ViewScheduleButton/ViewScheduleButton';
 import AddPersonButton from '@/components/AddPersonButton/AddPersonButton';
-import { Rank, RANKS_BY_GENDER } from '@/constants/rank';
-import { Gender } from '@/constants/gender';
-import { Person, PersonEditProps } from '@/types/types';
+import PersonDetailsModal from '@/components/modals/PersonDetailsModal';
+import PersonEditModal from '@/components/modals/PersonEditModal';
+import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
+import type { Person } from '@/types/types';
 import { MOCK_PEOPLE as IMPORTED_MOCK } from '@/lib/mockPeople';
+import { fullName } from '@/lib/rosterUtils';
+import {
+    btnDanger,
+    btnTablePrimary,
+    btnTableSecondary,
+    heading1,
+    lead,
+    pageContent,
+    table,
+    tableHeadRow,
+    tableRow,
+    tableTd,
+    tableTh,
+    tableWrap,
+} from '@/lib/ui';
 
 const MOCK_PEOPLE: Person[] = IMPORTED_MOCK;
 
@@ -22,26 +37,6 @@ function formatAvailability(availability: unknown): string {
     } catch {
         return String(availability);
     }
-}
-function calculateAge(birthDate?: string | null): number | null {
-    if (!birthDate) return null;
-
-    const today = new Date();
-    const dob = new Date(birthDate);
-
-    if (isNaN(dob.getTime())) return null;
-
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-        age--;
-    }
-
-    return age;
-}
-function fullName(p: Person): string {
-    return `${p.first_name} ${p.last_name}`;
 }
 
 function isSamePerson(a: Person, b: Person): boolean {
@@ -56,354 +51,7 @@ function isSamePerson(a: Person, b: Person): boolean {
     );
 }
 
-type ModalShellProps = {
-    title: string;
-    children: React.ReactNode;
-    onClose: () => void;
-};
-
-function ModalShell({ title, children, onClose }: ModalShellProps) {
-    return (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-            <div className='max-h-[90vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900'>
-                <div className='mb-4 flex items-center justify-between gap-4'>
-                    <h2 className='text-xl font-semibold text-zinc-900 dark:text-zinc-50'>
-                        {title}
-                    </h2>
-                    <button
-                        type='button'
-                        onClick={onClose}
-                        className='rounded-md bg-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600'
-                    >
-                        Close
-                    </button>
-                </div>
-                {children}
-            </div>
-        </div>
-    );
-}
-
-type PersonDetailsProps = {
-    person: Person;
-    onClose: () => void;
-};
-
-function PersonDetailsModal({ person, onClose }: PersonDetailsProps) {
-    const rows: Array<{ label: string; value: React.ReactNode }> = [
-        { label: 'First Name', value: person.first_name },
-        { label: 'Last Name', value: person.last_name },
-        { label: 'Birth Date', value: person.birth_date ?? '—' },
-        { label: 'Age', value: calculateAge(person.birth_date) },
-        { label: 'Gender', value: person.gender },
-        { label: 'Phone', value: person.phone },
-        { label: 'Parish', value: person.parish ?? '—' },
-        { label: 'Email', value: person.email ?? '—' },
-        { label: 'Rank', value: person.rank },
-        {
-            label: 'Availability',
-            value: formatAvailability(person.availability),
-        },
-    ];
-
-    return (
-        <ModalShell
-            title={`Person details: ${fullName(person)}`}
-            onClose={onClose}
-        >
-            <div className='rounded-lg border border-zinc-200 dark:border-zinc-800'>
-                <dl className='divide-y divide-zinc-200 text-sm dark:divide-zinc-800'>
-                    {rows.map((r) => (
-                        <div
-                            key={r.label}
-                            className='grid grid-cols-3 gap-4 px-4 py-3'
-                        >
-                            <dt className='font-medium text-zinc-600 dark:text-zinc-400'>
-                                {r.label}
-                            </dt>
-                            <dd className='col-span-2 text-zinc-900 dark:text-zinc-100'>
-                                <span className='break-words font-mono text-xs'>
-                                    {r.value}
-                                </span>
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-            </div>
-        </ModalShell>
-    );
-}
-
-function PersonEditModal({ person, onClose, onSave }: PersonEditProps) {
-    //const age = calculateAge(person.birth_date);
-    const [draft, setDraft] = useState<Person>({ ...person });
-    const [availabilityText, setAvailabilityText] = useState(() =>
-        draft.availability == null
-            ? ''
-            : formatAvailability(draft.availability),
-    );
-    const [error, setError] = useState<string | null>(null);
-
-    const update = <K extends keyof Person>(key: K, value: Person[K]) => {
-        setDraft((p) => ({ ...p, [key]: value }));
-    };
-
-    const handleSave = () => {
-        setError(null);
-
-        let parsedAvailability: unknown = availabilityText.trim();
-        if (availabilityText.trim() === '') parsedAvailability = null;
-        else {
-            try {
-                parsedAvailability = JSON.parse(availabilityText);
-            } catch {
-                // Allow free-form string if not valid JSON
-                parsedAvailability = availabilityText;
-            }
-        }
-
-        const next: Person = {
-            ...draft,
-            availability: parsedAvailability,
-        };
-
-        if (!next.first_name.trim() || !next.last_name.trim()) {
-            setError('First name and last name are required.');
-            return;
-        }
-        if (!next.gender.trim()) {
-            setError('Gender is required.');
-            return;
-        }
-        if (!next.phone.trim()) {
-            setError('Phone is required.');
-            return;
-        }
-        if (!next.rank.trim()) {
-            setError('Rank is required.');
-            return;
-        }
-
-        onSave(next);
-        onClose();
-    };
-
-    return (
-        <ModalShell
-            title={`Edit person: ${fullName(person)}`}
-            onClose={onClose}
-        >
-            <div className='space-y-4'>
-                {error && (
-                    <div className='rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200'>
-                        {error}
-                    </div>
-                )}
-
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            First Name
-                        </label>
-                        <input
-                            value={draft.first_name}
-                            onChange={(e) =>
-                                update('first_name', e.target.value)
-                            }
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Last Name
-                        </label>
-                        <input
-                            value={draft.last_name}
-                            onChange={(e) =>
-                                update('last_name', e.target.value)
-                            }
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Birth Date
-                        </label>
-                        <input
-                            type='date'
-                            value={draft.birth_date ?? ''}
-                            onChange={(e) =>
-                                update('birth_date', e.target.value)
-                            }
-                            placeholder='YYYY-MM-DD'
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Gender
-                        </label>
-
-                        <select
-                            value={draft.gender}
-                            onChange={(e) => update('gender', e.target.value)}
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        >
-                            <option value=''>Select gender</option>
-                            <option value={Gender.MALE}>{Gender.MALE}</option>
-                            <option value={Gender.FEMALE}>
-                                {Gender.FEMALE}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Phone
-                        </label>
-                        <input
-                            value={draft.phone}
-                            onChange={(e) => update('phone', e.target.value)}
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Parish
-                        </label>
-                        <input
-                            value={draft.parish ?? ''}
-                            onChange={(e) => update('parish', e.target.value)}
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1 sm:col-span-2'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Email
-                        </label>
-                        <input
-                            value={draft.email ?? ''}
-                            onChange={(e) => update('email', e.target.value)}
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-
-                    <div className='space-y-1 sm:col-span-2'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Rank
-                        </label>
-                        <select
-                            value={draft.rank}
-                            onChange={(e) =>
-                                update('rank', e.target.value as Rank)
-                            }
-                            disabled={!draft.gender}
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        >
-                            <option value=''>Select rank</option>
-
-                            {draft.gender &&
-                                RANKS_BY_GENDER[draft.gender].map((rank) => (
-                                    <option
-                                        key={rank}
-                                        value={rank}
-                                    >
-                                        {rank}
-                                    </option>
-                                ))}
-                        </select>
-                    </div>
-
-                    <div className='space-y-1 sm:col-span-2'>
-                        <label className='text-sm font-medium text-zinc-700 dark:text-zinc-300'>
-                            Availability (JSON or text)
-                        </label>
-                        <textarea
-                            value={availabilityText}
-                            onChange={(e) =>
-                                setAvailabilityText(e.target.value)
-                            }
-                            rows={4}
-                            placeholder='e.g. {"sundays": true, "wednesdays": false}'
-                            className='w-full rounded border border-zinc-200 bg-white px-3 py-2 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'
-                        />
-                    </div>
-                </div>
-
-                <div className='flex items-center justify-end gap-2'>
-                    <button
-                        type='button'
-                        onClick={onClose}
-                        className='rounded border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type='button'
-                        onClick={handleSave}
-                        className='rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700'
-                    >
-                        Save
-                    </button>
-                </div>
-            </div>
-        </ModalShell>
-    );
-}
-
-type DeleteConfirmModalProps = {
-    person: Person;
-    onCancel: () => void;
-    onConfirm: () => void;
-};
-
-function DeleteConfirmModal({
-    person,
-    onCancel,
-    onConfirm,
-}: DeleteConfirmModalProps) {
-    return (
-        <ModalShell
-            title='Delete person?'
-            onClose={onCancel}
-        >
-            <div className='space-y-4'>
-                <p className='text-sm text-zinc-700 dark:text-zinc-300'>
-                    This will permanently remove{' '}
-                    <span className='font-semibold text-zinc-900 dark:text-zinc-50'>
-                        {fullName(person)}
-                    </span>
-                    {person.birth_date ? ` (${person.birth_date})` : ''} from
-                    the roster.
-                </p>
-                <div className='flex items-center justify-end gap-2'>
-                    <button
-                        type='button'
-                        onClick={onCancel}
-                        className='rounded border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type='button'
-                        onClick={onConfirm}
-                        className='rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700'
-                    >
-                        Delete
-                    </button>
-                </div>
-            </div>
-        </ModalShell>
-    );
-}
-
 export default function RosterPage() {
-    const router = useRouter();
     const [people, setPeople] = useState<Person[]>(MOCK_PEOPLE);
     const [viewing, setViewing] = useState<Person | null>(null);
     const [editing, setEditing] = useState<Person | null>(null);
@@ -428,7 +76,6 @@ export default function RosterPage() {
                 isSamePerson(p, updated),
             );
 
-            // Update existing person matched by first_name, last_name, birth_date
             if (existingIndex !== -1) {
                 const existing = prev[existingIndex];
                 const merged: Person = {
@@ -441,7 +88,6 @@ export default function RosterPage() {
                 return next;
             }
 
-            // Otherwise treat as new person, assign next id
             const nextId =
                 (prev.reduce((m, p) => Math.max(m, p.id), 0) || 0) + 1;
             const toAdd: Person = { ...updated, id: nextId };
@@ -477,178 +123,157 @@ export default function RosterPage() {
 
     return (
         <SidebarLayout>
-            <div className='flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black'>
-                <BackButton />
-                <main className='flex min-h-screen w-full max-w-6xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black'>
-                    <header className='space-y-2'>
-                        <h1 className='text-3xl font-semibold tracking-tight text-black dark:text-zinc-50'>
-                            Roster
-                        </h1>
-                        <p className='text-zinc-600 dark:text-zinc-400'>
-                            Individuals who can officiate services.
-                        </p>
-                        <div className='flex flex-col gap-3 pt-2 sm:flex-row'>
+            <div className={`${pageContent} relative max-w-6xl`}>
+                <div className='flex flex-col gap-6 sm:flex-row sm:items-start'>
+                    <BackButton />
+                    <header className='min-w-0 flex-1 space-y-4 pt-1 sm:pt-0'>
+                        <div>
+                            <h1 className={heading1}>Roster</h1>
+                            <p className={`${lead} mt-2 max-w-xl`}>
+                                Individuals who can officiate services.
+                            </p>
+                        </div>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:flex-wrap'>
                             <UploadSheetButton />
                             <ViewScheduleButton />
                             <AddPersonButton onClick={handleAddPerson} />
                         </div>
                     </header>
+                </div>
 
-                    <div className='w-full overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800'>
-                        <table className='w-full min-w-[900px] text-left text-sm text-zinc-800 dark:text-zinc-200'>
-                            <thead>
-                                <tr className='border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800'>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Name
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Gender
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Rank
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Phone
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Availability
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Details
-                                    </th>
-                                    <th className='px-4 py-3 font-semibold'>
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pageRows.map((p) => (
-                                    <tr
-                                        key={p.id}
-                                        className='border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                <div className={`${tableWrap} max-w-full`}>
+                    <table className={`${table} min-w-[900px]`}>
+                        <thead>
+                            <tr className={tableHeadRow}>
+                                <th className={tableTh}>Name</th>
+                                <th className={tableTh}>Gender</th>
+                                <th className={tableTh}>Rank</th>
+                                <th className={tableTh}>Phone</th>
+                                <th className={tableTh}>Availability</th>
+                                <th className={tableTh}>Details</th>
+                                <th className={tableTh}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pageRows.map((p) => (
+                                <tr key={p.id} className={tableRow}>
+                                    <td
+                                        className={`${tableTd} font-medium text-stone-900 dark:text-stone-100`}
                                     >
-                                        <td className='px-4 py-3 font-medium'>
-                                            {fullName(p)}
-                                        </td>
-                                        <td className='px-4 py-3'>
-                                            {p.gender}
-                                        </td>
-                                        <td className='px-4 py-3'>{p.rank}</td>
-                                        <td className='px-4 py-3'>{p.phone}</td>
-                                        <td className='px-4 py-3 max-w-[320px]'>
-                                            <span className='block truncate font-mono text-xs text-zinc-600 dark:text-zinc-400'>
-                                                {formatAvailability(
-                                                    p.availability,
-                                                )}
-                                            </span>
-                                        </td>
-                                        <td className='px-4 py-3'>
+                                        {fullName(p)}
+                                    </td>
+                                    <td className={tableTd}>{p.gender}</td>
+                                    <td className={tableTd}>{p.rank}</td>
+                                    <td className={tableTd}>{p.phone}</td>
+                                    <td className={`${tableTd} max-w-[320px]`}>
+                                        <span className='block truncate font-mono text-xs text-stone-500 dark:text-stone-400'>
+                                            {formatAvailability(
+                                                p.availability,
+                                            )}
+                                        </span>
+                                    </td>
+                                    <td className={tableTd}>
+                                        <button
+                                            type='button'
+                                            onClick={() => setViewing(p)}
+                                            className={btnTablePrimary}
+                                        >
+                                            View details
+                                        </button>
+                                    </td>
+                                    <td className={tableTd}>
+                                        <div className='flex flex-wrap items-center gap-2'>
                                             <button
                                                 type='button'
-                                                onClick={() => setViewing(p)}
-                                                className='rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700'
+                                                onClick={() => setEditing(p)}
+                                                className={btnTableSecondary}
                                             >
-                                                View details
+                                                Edit
                                             </button>
-                                        </td>
-                                        <td className='px-4 py-3'>
-                                            <div className='flex flex-wrap items-center gap-2'>
-                                                <button
-                                                    type='button'
-                                                    onClick={() =>
-                                                        setEditing(p)
-                                                    }
-                                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    type='button'
-                                                    onClick={() =>
-                                                        setDeleting(p)
-                                                    }
-                                                    className='rounded border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:bg-zinc-900 dark:text-red-200 dark:hover:bg-red-900/20'
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {pageRows.length === 0 && (
-                                    <tr>
-                                        <td
-                                            colSpan={7}
-                                            className='px-4 py-8 text-center text-zinc-500 dark:text-zinc-400'
-                                        >
-                                            No people found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                            <button
+                                                type='button'
+                                                onClick={() => setDeleting(p)}
+                                                className={btnDanger}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {pageRows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={7}
+                                        className='px-4 py-10 text-center text-stone-500 dark:text-stone-400'
+                                    >
+                                        No people found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                    {showPagination && (
-                        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                            <div className='text-sm text-zinc-600 dark:text-zinc-400'>
-                                Showing {(safePage - 1) * pageSize + 1}–
-                                {Math.min(safePage * pageSize, totalRows)} of{' '}
-                                {totalRows}
-                            </div>
-                            <div className='flex items-center gap-2'>
-                                <button
-                                    type='button'
-                                    onClick={() =>
-                                        setPage((p) => Math.max(1, p - 1))
-                                    }
-                                    disabled={safePage === 1}
-                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                                >
-                                    Prev
-                                </button>
-                                <div className='text-sm text-zinc-700 dark:text-zinc-300'>
-                                    Page {safePage} of {totalPages}
-                                </div>
-                                <button
-                                    type='button'
-                                    onClick={() =>
-                                        setPage((p) =>
-                                            Math.min(totalPages, p + 1),
-                                        )
-                                    }
-                                    disabled={safePage === totalPages}
-                                    className='rounded border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
-                                >
-                                    Next
-                                </button>
-                            </div>
+                {showPagination && (
+                    <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                        <p className='text-sm text-stone-600 dark:text-stone-400'>
+                            Showing {(safePage - 1) * pageSize + 1}–
+                            {Math.min(safePage * pageSize, totalRows)} of{' '}
+                            {totalRows}
+                        </p>
+                        <div className='flex items-center gap-2'>
+                            <button
+                                type='button'
+                                onClick={() =>
+                                    setPage((p) => Math.max(1, p - 1))
+                                }
+                                disabled={safePage === 1}
+                                className='rounded-2xl border border-stone-300/90 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800'
+                            >
+                                Prev
+                            </button>
+                            <span className='min-w-[6rem] text-center text-sm text-stone-600 dark:text-stone-400'>
+                                Page {safePage} of {totalPages}
+                            </span>
+                            <button
+                                type='button'
+                                onClick={() =>
+                                    setPage((p) =>
+                                        Math.min(totalPages, p + 1),
+                                    )
+                                }
+                                disabled={safePage === totalPages}
+                                className='rounded-2xl border border-stone-300/90 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800'
+                            >
+                                Next
+                            </button>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {viewing && (
-                        <PersonDetailsModal
-                            person={viewing}
-                            onClose={() => setViewing(null)}
-                        />
-                    )}
+                {viewing && (
+                    <PersonDetailsModal
+                        person={viewing}
+                        onClose={() => setViewing(null)}
+                    />
+                )}
 
-                    {editing && (
-                        <PersonEditModal
-                            person={editing}
-                            onClose={() => setEditing(null)}
-                            onSave={handleSave}
-                        />
-                    )}
+                {editing && (
+                    <PersonEditModal
+                        person={editing}
+                        onClose={() => setEditing(null)}
+                        onSave={handleSave}
+                    />
+                )}
 
-                    {deleting && (
-                        <DeleteConfirmModal
-                            person={deleting}
-                            onCancel={() => setDeleting(null)}
-                            onConfirm={confirmDelete}
-                        />
-                    )}
-                </main>
+                {deleting && (
+                    <DeleteConfirmModal
+                        person={deleting}
+                        onCancel={() => setDeleting(null)}
+                        onConfirm={confirmDelete}
+                    />
+                )}
             </div>
         </SidebarLayout>
     );

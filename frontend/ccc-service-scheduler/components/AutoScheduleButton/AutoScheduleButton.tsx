@@ -1,6 +1,7 @@
 'use client';
 
 import { api } from '@/lib/api';
+import { btnPrimary } from '@/lib/ui';
 
 export default function AutoScheduleButton() {
     const run = async () => {
@@ -9,11 +10,8 @@ export default function AutoScheduleButton() {
     };
 
     return (
-        <button
-            onClick={run}
-            className='px-4 py-2 rounded bg-blue-600 text-white'
-        >
-            Auto-Schedule
+        <button type='button' onClick={run} className={btnPrimary}>
+            Auto-schedule
         </button>
     );
 }

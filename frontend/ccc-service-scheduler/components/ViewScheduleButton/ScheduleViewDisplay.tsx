@@ -1,65 +1,87 @@
 'use client';
 
-import {
-    ScheduleWeekDetail,
-    ScheduleViewDisplayProps,
-} from '../../types/scheduleTypes';
+import type { ScheduleViewDisplayProps } from '@/types/scheduleTypes';
+import ModalShell from '@/components/modals/ModalShell';
+import { btnSecondary } from '@/lib/ui';
 
 export default function ScheduleViewDisplay({
     schedule,
     onClose,
 }: ScheduleViewDisplayProps) {
     return (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-            <div className='max-h-[90vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900'>
-                <div className='mb-4 flex items-center justify-between'>
-                    <h2 className='text-xl font-semibold text-zinc-900 dark:text-zinc-50'>
-                        Schedule: {schedule.startDate} – {schedule.endDate} (
-                        {schedule.month} {schedule.year})
+        <ModalShell
+            onClose={onClose}
+            ariaLabel={`Schedule for ${schedule.startDate} through ${schedule.endDate}`}
+            panelClassName='max-w-3xl border-indigo-950/10 shadow-indigo-950/20 dark:border-indigo-300/10'
+        >
+            <div className='mb-6 flex flex-col gap-4 border-b border-amber-200/40 pb-5 dark:border-amber-400/20 sm:flex-row sm:items-start sm:justify-between sm:pb-6'>
+                <div>
+                    <p className='font-mono text-[11px] font-medium uppercase tracking-[0.25em] text-amber-700 dark:text-amber-400/90'>
+                        Week view
+                    </p>
+                    <h2 className='mt-2 font-[family-name:var(--font-fraunces),Georgia,serif] text-2xl font-medium tracking-tight text-indigo-950 dark:text-indigo-50 sm:text-3xl'>
+                        {schedule.startDate}{' '}
+                        <span className='text-amber-600/70 dark:text-amber-400/60'>
+                            –
+                        </span>{' '}
+                        {schedule.endDate}
                     </h2>
-                    <button
-                        type='button'
-                        onClick={onClose}
-                        className='rounded-md bg-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600'
-                    >
-                        Close
-                    </button>
+                    <p className='mt-1 text-sm text-stone-600 dark:text-stone-400'>
+                        {schedule.month} {schedule.year}
+                    </p>
                 </div>
-                <div className='space-y-6'>
-                    {schedule.days.map((day) => (
-                        <section
-                            key={day.date}
-                            className='rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50'
-                        >
-                            <h3 className='mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400'>
+                <button
+                    type='button'
+                    onClick={onClose}
+                    className={btnSecondary}
+                >
+                    Close
+                </button>
+            </div>
+            <div className='max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin] sm:max-h-[min(70vh,32rem)]'>
+                {schedule.days.map((day) => (
+                    <section
+                        key={day.date}
+                        className='relative overflow-hidden rounded-2xl border border-stone-200/80 bg-stone-50/50 pl-4 dark:border-stone-600/50 dark:bg-stone-900/30'
+                    >
+                        <div
+                            className='absolute bottom-0 left-0 top-0 w-1 bg-gradient-to-b from-amber-500 to-indigo-700 opacity-90 dark:from-amber-400 dark:to-indigo-500'
+                            aria-hidden
+                        />
+                        <div className='py-4 pl-4 pr-4'>
+                            <h3 className='text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400'>
                                 {day.dayOfWeek} — {day.date}
                                 {day.serviceType
-                                    ? ` · ${day.serviceType} (${day.time})`
+                                    ? ` · ${day.serviceType}${
+                                          day.time ? ` · ${day.time}` : ''
+                                      }`
                                     : ''}
                             </h3>
                             {day.officiants.length === 0 ? (
-                                <p className='text-sm text-zinc-500 dark:text-zinc-400'>
+                                <p className='mt-2 text-sm text-stone-500 dark:text-stone-400'>
                                     No officiants assigned
                                 </p>
                             ) : (
-                                <ul className='space-y-1.5'>
+                                <ul className='mt-3 space-y-2'>
                                     {day.officiants.map((o, i) => (
                                         <li
                                             key={`${day.date}-${o.role}-${i}`}
-                                            className='flex justify-between gap-4 text-sm text-zinc-800 dark:text-zinc-200'
+                                            className='flex items-center justify-between gap-4 rounded-xl border border-stone-200/60 bg-white/90 px-3 py-2.5 text-sm dark:border-stone-600/40 dark:bg-stone-950/40'
                                         >
-                                            <span className='font-medium text-zinc-600 dark:text-zinc-400'>
+                                            <span className='font-medium text-indigo-900 dark:text-indigo-200'>
                                                 {o.role}
                                             </span>
-                                            <span>{o.personName}</span>
+                                            <span className='text-stone-800 dark:text-stone-100'>
+                                                {o.personName}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>
                             )}
-                        </section>
-                    ))}
-                </div>
+                        </div>
+                    </section>
+                ))}
             </div>
-        </div>
+        </ModalShell>
     );
 }

@@ -1,3 +1,5 @@
+import { Rank } from '@/constants/rank';
+
 export type Person = {
     id: number;
     first_name: string;
@@ -7,7 +9,7 @@ export type Person = {
     phone: string;
     parish?: string | null;
     email?: string | null;
-    rank: Rank;
+    rank: Rank | '';
     availability?: unknown;
 };
 

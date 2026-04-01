@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { btnPrimary } from '@/lib/ui';
 
 export default function ViewRosterButton() {
     const router = useRouter();
@@ -9,9 +10,9 @@ export default function ViewRosterButton() {
         <button
             type='button'
             onClick={() => router.push('/roster')}
-            className='rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700'
+            className={btnPrimary}
         >
-            View Roster
+            View roster
         </button>
     );
 }
