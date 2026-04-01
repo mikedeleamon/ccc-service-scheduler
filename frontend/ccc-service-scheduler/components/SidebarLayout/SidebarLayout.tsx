@@ -60,6 +60,9 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
         } else {
             document.body.style.overflow = '';
         }
+        return () => {
+            document.body.style.overflow = '';
+        };
     }, [isOpen]);
 
     const navLinks = [
@@ -71,7 +74,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
     ];
 
     return (
-        <div className='relative min-h-screen bg-zinc-50 dark:bg-black'>
+        <div className='relative flex min-h-dvh flex-col bg-zinc-50 dark:bg-black'>
             {/* Backdrop */}
             {isOpen && (
                 <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300' />
@@ -123,7 +126,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
             </nav>
 
             {/* Header */}
-            <header className='p-4 bg-white dark:bg-zinc-900 shadow-md flex items-center'>
+            <header className='shrink-0 p-4 bg-white dark:bg-zinc-900 shadow-md flex items-center'>
                 <button
                     className='text-xl text-zinc-600 dark:text-zinc-400'
                     onClick={toggleSidebar}
@@ -132,8 +135,10 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
                 </button>
             </header>
 
-            {/* Main Content */}
-            <main className='p-6 md:p-10'>{children}</main>
+            {/* Main: grows with content; document scrolls (nested overflow was clipped by parent overflow-hidden) */}
+            <main className='w-full p-6 pb-12 md:p-10 md:pb-16'>
+                {children}
+            </main>
         </div>
     );
 }

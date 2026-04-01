@@ -7,8 +7,8 @@ import ViewRosterButton from '@/components/ViewRosterButton/ViewRosterButton';
 export default function Home() {
     return (
         <SidebarLayout>
-            <div className='flex w-full items-center justify-center'>
-                <div className='flex flex-col items-center gap-8 max-w-2xl text-center'>
+            <div className='flex w-full flex-col items-center justify-center py-4 sm:py-8'>
+                <div className='flex w-full max-w-2xl flex-col items-center gap-8 text-center'>
                     <h1 className='text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50'>
                         Welcome to the CCC Service Scheduler
                     </h1>
