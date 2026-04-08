@@ -111,6 +111,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
                                     key={link.href}
                                     href={link.href}
                                     onClick={closeSidebar}
+                                    aria-current={isActive ? 'page' : undefined}
                                     className={`relative block rounded-2xl px-4 py-3 text-sm font-medium transition ${
                                         isActive
                                             ? 'bg-indigo-700 text-white shadow-md shadow-indigo-950/30 dark:bg-indigo-500 dark:shadow-indigo-950/40'

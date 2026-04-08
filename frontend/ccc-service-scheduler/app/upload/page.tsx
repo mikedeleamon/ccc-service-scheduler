@@ -208,6 +208,8 @@ export default function UploadPage() {
                                 ? 'border-emerald-200/80 bg-emerald-50/90 dark:border-emerald-900/50 dark:bg-emerald-950/40'
                                 : 'border-red-200/80 bg-red-50/90 dark:border-red-900/50 dark:bg-red-950/40'
                         }`}
+                        role={result.success ? 'status' : 'alert'}
+                        aria-live={result.success ? 'polite' : 'assertive'}
                     >
                         <p
                             className={`text-sm font-medium ${

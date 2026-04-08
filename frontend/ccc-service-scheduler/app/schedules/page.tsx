@@ -413,6 +413,10 @@ export default function ServicesPage() {
 
                 <div className={tableWrap}>
                     <table className={table}>
+                        <caption className='sr-only'>
+                            Weekly schedules. Use the View schedule button to
+                            open a week’s details.
+                        </caption>
                         <thead>
                             <tr className={tableHeadRow}>
                                 <th className={tableTh}>Date</th>
@@ -439,6 +443,10 @@ export default function ServicesPage() {
                                                 handleView(row.id)
                                             }
                                             className={btnTablePrimary}
+                                            aria-label={`View schedule for ${formatDateRange(
+                                                row.startDate,
+                                                row.endDate,
+                                            )}`}
                                         >
                                             View schedule
                                         </button>
@@ -451,7 +459,7 @@ export default function ServicesPage() {
 
                 {showPagination && (
                     <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                        <p className='text-sm text-slate-600 dark:text-slate-400'>
+                        <p className='text-sm text-stone-600 dark:text-stone-400'>
                             Showing {(safePage - 1) * pageSize + 1}–
                             {Math.min(safePage * pageSize, totalRows)} of{' '}
                             {totalRows}
@@ -463,11 +471,12 @@ export default function ServicesPage() {
                                     setPage((p) => Math.max(1, p - 1))
                                 }
                                 disabled={safePage === 1}
-                                className='rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                className='rounded-2xl border border-stone-300/90 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800'
+                                aria-label='Previous page'
                             >
                                 Prev
                             </button>
-                            <span className='min-w-[6rem] text-center text-sm text-slate-600 dark:text-slate-400'>
+                            <span className='min-w-[6rem] text-center text-sm text-stone-600 dark:text-stone-400' aria-live='polite'>
                                 Page {safePage} of {totalPages}
                             </span>
                             <button
@@ -478,7 +487,8 @@ export default function ServicesPage() {
                                     )
                                 }
                                 disabled={safePage === totalPages}
-                                className='rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                className='rounded-2xl border border-stone-300/90 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800'
+                                aria-label='Next page'
                             >
                                 Next
                             </button>
