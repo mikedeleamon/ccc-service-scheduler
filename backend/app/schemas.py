@@ -40,6 +40,7 @@ class ServiceBase(BaseModel):
     date: date
     service_type: str
     time: Optional[str] = None
+    parish: Optional[str] = None
 
 
 class ServiceCreate(ServiceBase):
@@ -50,6 +51,7 @@ class ServiceUpdate(BaseModel):
     date: Optional[date] = None
     service_type: Optional[str] = None
     time: Optional[str] = None
+    parish: Optional[str] = None
 
 
 class ServiceOut(ServiceBase):

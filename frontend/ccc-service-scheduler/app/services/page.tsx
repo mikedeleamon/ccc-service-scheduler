@@ -5,6 +5,7 @@ import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import BackButton from '@/components/BackButton/BackButton';
 import ServiceEditModal, { ServiceDraft } from '@/components/modals/ServiceEditModal';
 import { api } from '@/lib/api';
+import { useParish } from '@/lib/ParishContext';
 import {
     btnDanger,
     btnPrimary,
@@ -26,6 +27,7 @@ type Service = {
     date: string;
     time: string | null;
     service_type: string;
+    parish: string | null;
 };
 
 function formatDate(iso: string): string {
@@ -34,6 +36,7 @@ function formatDate(iso: string): string {
 }
 
 export default function ServicesPage() {
+    const { parish } = useParish();
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -42,13 +45,16 @@ export default function ServicesPage() {
     const [page, setPage] = useState(1);
     const pageSize = 10;
 
-    const load = () =>
-        api('/services')
+    const load = () => {
+        setLoading(true);
+        const params = parish ? `?parish=${encodeURIComponent(parish)}` : '';
+        return api(`/services${params}`)
             .then((data) => setServices(Array.isArray(data) ? data : []))
             .catch((err) => setError(err.message ?? 'Failed to load services'))
             .finally(() => setLoading(false));
+    };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [parish]);
 
     const totalRows = services.length;
     const showPagination = totalRows > pageSize;
@@ -61,18 +67,19 @@ export default function ServicesPage() {
     }, [services, safePage]);
 
     const handleSave = async (draft: ServiceDraft) => {
+        const payload = { date: draft.date, time: draft.time || null, service_type: draft.service_type, parish: parish || null };
         if (draft.id) {
             const updated = await api(`/services/${draft.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: draft.date, time: draft.time || null, service_type: draft.service_type }),
+                body: JSON.stringify(payload),
             });
             setServices((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
         } else {
             const created = await api('/services', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: draft.date, time: draft.time || null, service_type: draft.service_type }),
+                body: JSON.stringify(payload),
             });
             setServices((prev) => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
         }

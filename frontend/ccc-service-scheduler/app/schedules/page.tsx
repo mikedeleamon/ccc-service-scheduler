@@ -7,6 +7,7 @@ import ScheduleViewDisplay from '@/components/ViewScheduleButton/ScheduleViewDis
 import type { ScheduleWeekDetail, ScheduleWeekSummary } from '@/types/scheduleTypes';
 import BackButton from '@/components/BackButton/BackButton';
 import { api } from '@/lib/api';
+import { useParish } from '@/lib/ParishContext';
 import {
     btnTablePrimary,
     heading1,
@@ -24,7 +25,8 @@ function formatDateRange(start: string, end: string): string {
     return `${start} – ${end}`;
 }
 
-export default function ServicesPage() {
+export default function SchedulesPage() {
+    const { parish } = useParish();
     const [schedules, setSchedules] = useState<ScheduleWeekDetail[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,11 +35,13 @@ export default function ServicesPage() {
     const pageSize = 10;
 
     useEffect(() => {
-        api('/schedule')
+        setLoading(true);
+        const params = parish ? `?parish=${encodeURIComponent(parish)}` : '';
+        api(`/schedule${params}`)
             .then((data) => setSchedules(Array.isArray(data) ? data : []))
             .catch((err) => setError(err.message ?? 'Failed to load schedules'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [parish]);
 
     const summaries: ScheduleWeekSummary[] = useMemo(
         () => schedules.map((s) => ({

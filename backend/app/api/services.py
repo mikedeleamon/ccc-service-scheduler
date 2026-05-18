@@ -10,8 +10,11 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[ServiceOut])
-def get_services(db: Session = Depends(get_db)):
-    return db.query(Service).order_by(Service.date).all()
+def get_services(parish: str = None, db: Session = Depends(get_db)):
+    q = db.query(Service)
+    if parish:
+        q = q.filter(Service.parish == parish)
+    return q.order_by(Service.date).all()
 
 
 @router.post("/", response_model=ServiceOut, status_code=201)

@@ -10,8 +10,11 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[PersonOut])
-def get_people(db: Session = Depends(get_db)):
-    return db.query(Person).order_by(Person.last_name, Person.first_name).all()
+def get_people(parish: str = None, db: Session = Depends(get_db)):
+    q = db.query(Person)
+    if parish:
+        q = q.filter(Person.parish == parish)
+    return q.order_by(Person.last_name, Person.first_name).all()
 
 
 @router.get("/{person_id}", response_model=PersonOut)

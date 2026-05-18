@@ -63,8 +63,11 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
 
 
 @router.get("/")
-def get_schedules(db: Session = Depends(get_db)):
-    services = db.query(Service).order_by(Service.date).all()
+def get_schedules(parish: str = None, db: Session = Depends(get_db)):
+    q = db.query(Service)
+    if parish:
+        q = q.filter(Service.parish == parish)
+    services = q.order_by(Service.date).all()
     return _build_schedule_response(services, db)
 
 

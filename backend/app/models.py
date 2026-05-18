@@ -23,6 +23,7 @@ class Service(Base):
     date = Column(Date)
     service_type = Column(String)
     time = Column(String, nullable=True)   # HH:MM, e.g. "10:00"
+    parish = Column(String, nullable=True)
 
 class Officiant_Assignment(Base):
     __tablename__ = "officiant_assignments"

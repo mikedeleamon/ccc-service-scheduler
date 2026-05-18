@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useParish } from '@/lib/ParishContext';
 import { btnClose, btnMenu } from '@/lib/ui';
 
 type SidebarLayoutProps = {
@@ -21,6 +22,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
     const [isOpen, setIsOpen] = useState(false);
     const pathname = usePathname();
     const navRef = useRef<HTMLDivElement>(null);
+    const { parish } = useParish();
 
     const closeSidebar = () => setIsOpen(false);
 
@@ -131,24 +133,36 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
                             <path strokeLinecap='round' strokeLinejoin='round' d='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' />
                         </svg>
                     </button>
-                    <div className='min-w-0'>
+                    <div className='flex min-w-0 items-center gap-2'>
                         <p className='truncate text-sm font-semibold text-indigo-950 dark:text-stone-100'>
                             Service Scheduler
                         </p>
+                        {parish && (
+                            <span className='shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'>
+                                {parish}
+                            </span>
+                        )}
                     </div>
                 </div>
 
                 {/* Desktop header — brand + nav links */}
                 <div className='mx-auto hidden max-w-6xl items-center justify-between px-6 py-0 sm:flex'>
-                    <Link href='/' className='flex items-center gap-2.5 py-4'>
-                        <span className='font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-700 dark:text-amber-400/90'>
-                            CCC
-                        </span>
-                        <span className='h-3.5 w-px bg-stone-300 dark:bg-stone-600' aria-hidden />
-                        <span className='text-sm font-semibold text-indigo-950 dark:text-stone-100'>
-                            Service Scheduler
-                        </span>
-                    </Link>
+                    <div className='flex items-center gap-3 py-4'>
+                        <Link href='/' className='flex items-center gap-2.5'>
+                            <span className='font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-700 dark:text-amber-400/90'>
+                                CCC
+                            </span>
+                            <span className='h-3.5 w-px bg-stone-300 dark:bg-stone-600' aria-hidden />
+                            <span className='text-sm font-semibold text-indigo-950 dark:text-stone-100'>
+                                Service Scheduler
+                            </span>
+                        </Link>
+                        {parish && (
+                            <span className='rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'>
+                                {parish}
+                            </span>
+                        )}
+                    </div>
 
                     <nav aria-label='Main navigation' className='flex items-center gap-1'>
                         {navLinks.map((link) => {

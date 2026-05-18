@@ -12,6 +12,7 @@ import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
 import type { Person } from '@/types/types';
 import { fullName } from '@/lib/rosterUtils';
 import { api } from '@/lib/api';
+import { useParish } from '@/lib/ParishContext';
 import {
     btnDanger,
     btnTablePrimary,
@@ -40,6 +41,7 @@ function formatAvailability(availability: unknown): string {
 }
 
 export default function RosterPage() {
+    const { parish } = useParish();
     const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -52,11 +54,13 @@ export default function RosterPage() {
     const [genderFilter, setGenderFilter] = useState('');
 
     useEffect(() => {
-        api('/people')
+        setLoading(true);
+        const params = parish ? `?parish=${encodeURIComponent(parish)}` : '';
+        api(`/people${params}`)
             .then((data) => setPeople(Array.isArray(data) ? data : []))
             .catch((err) => setError(err.message ?? 'Failed to load roster'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [parish]);
 
     const ranks = useMemo(() => {
         const set = new Set(people.map((p) => p.rank).filter(Boolean));
