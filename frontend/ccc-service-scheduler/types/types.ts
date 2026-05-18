@@ -5,8 +5,8 @@ export type Person = {
     first_name: string;
     last_name: string;
     birth_date?: string | null; // YYYY-MM-DD
-    gender: string;
-    phone: string;
+    gender?: string | null;
+    phone?: string | null;
     parish?: string | null;
     email?: string | null;
     rank: Rank | '';

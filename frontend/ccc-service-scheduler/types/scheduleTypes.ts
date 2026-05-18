@@ -1,13 +1,16 @@
 export type OfficiantAssignment = {
+  id: number;
   role: string;
   personName: string;
-  personId?: number;
+  personId: number;
+  confirmed: boolean;
 };
 
 export type DaySchedule = {
+  serviceId: number;
   dayOfWeek: string;
-  date: string; // YYYY-MM-DD
-  time?: string | null; // 1000
+  date: string;
+  time?: string | null;
   serviceType?: string;
   officiants: OfficiantAssignment[];
 };
@@ -32,4 +35,5 @@ export type ScheduleWeekSummary = {
 export type ScheduleViewDisplayProps = {
   schedule: ScheduleWeekDetail;
   onClose: () => void;
+  onScheduleChanged?: () => void;
 };

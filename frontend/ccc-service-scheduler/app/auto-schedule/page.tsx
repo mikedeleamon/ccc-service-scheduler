@@ -14,8 +14,7 @@ export default function AutoSchedulePage() {
                     <header className='min-w-0 flex-1 space-y-4 pt-1 sm:pt-0'>
                         <h1 className={heading1}>Auto-schedule</h1>
                         <p className={lead}>
-                            Run the scheduler against the API. Check the
-                            browser console for the response payload.
+                            Automatically assign officiants to all upcoming services based on availability and rank.
                         </p>
                         <AutoScheduleButton />
                     </header>

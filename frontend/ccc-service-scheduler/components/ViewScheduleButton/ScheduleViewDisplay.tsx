@@ -1,13 +1,251 @@
 'use client';
 
-import type { ScheduleViewDisplayProps } from '@/types/scheduleTypes';
+import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
+import type { OfficiantAssignment, DaySchedule, ScheduleWeekDetail, ScheduleViewDisplayProps } from '@/types/scheduleTypes';
 import ModalShell from '@/components/modals/ModalShell';
-import { btnSecondary } from '@/lib/ui';
+import { api } from '@/lib/api';
+import { btnDanger, btnPrimary, btnSecondary, btnTableSecondary, inputBase, selectBase } from '@/lib/ui';
 
-export default function ScheduleViewDisplay({
-    schedule,
-    onClose,
-}: ScheduleViewDisplayProps) {
+type Person = { id: number; first_name: string; last_name: string; rank: string };
+
+function exportToExcel(schedule: ScheduleWeekDetail) {
+    const rows: Record<string, string>[] = [];
+    for (const day of schedule.days) {
+        if (day.officiants.length === 0) {
+            rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: '', Person: '', Confirmed: '' });
+        } else {
+            for (const o of day.officiants) {
+                rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: o.role, Person: o.personName, Confirmed: o.confirmed ? 'Yes' : 'No' });
+            }
+        }
+    }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Schedule');
+    XLSX.writeFile(wb, `schedule-${schedule.startDate}-to-${schedule.endDate}.xlsx`);
+}
+
+type AssignmentFormProps = {
+    people: Person[];
+    initial?: { personId: number; role: string };
+    onSave: (personId: number, role: string) => Promise<void>;
+    onCancel: () => void;
+};
+
+function AssignmentForm({ people, initial, onSave, onCancel }: AssignmentFormProps) {
+    const [personId, setPersonId] = useState<number | ''>(initial?.personId ?? '');
+    const [role, setRole] = useState(initial?.role ?? '');
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleSubmit = async () => {
+        if (personId === '') { setError('Select a person.'); return; }
+        if (!role.trim()) { setError('Role is required.'); return; }
+        setSaving(true);
+        setError(null);
+        try {
+            await onSave(personId as number, role.trim());
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to save.');
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className='mt-3 space-y-2 rounded-xl border border-indigo-200/60 bg-indigo-50/60 p-3 dark:border-indigo-800/40 dark:bg-indigo-950/30'>
+            {error && <p className='text-xs text-red-600 dark:text-red-400'>{error}</p>}
+            <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+                <select
+                    value={personId}
+                    onChange={(e) => setPersonId(e.target.value === '' ? '' : Number(e.target.value))}
+                    className={selectBase}
+                >
+                    <option value=''>Select person…</option>
+                    {people.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {p.first_name} {p.last_name} ({p.rank})
+                        </option>
+                    ))}
+                </select>
+                <input
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    placeholder='Role…'
+                    className={inputBase}
+                />
+            </div>
+            <div className='flex justify-end gap-2'>
+                <button type='button' onClick={onCancel} className={btnSecondary}>Cancel</button>
+                <button type='button' onClick={handleSubmit} disabled={saving} className={`${btnPrimary} disabled:pointer-events-none disabled:opacity-45`}>
+                    {saving ? 'Saving…' : 'Save'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+type DaySectionProps = {
+    day: DaySchedule;
+    people: Person[];
+    onAdd: (serviceId: number, personId: number, role: string) => Promise<void>;
+    onEdit: (assignmentId: number, personId: number, role: string) => Promise<void>;
+    onRemove: (assignmentId: number) => Promise<void>;
+    onToggleConfirm: (assignmentId: number, confirmed: boolean) => Promise<void>;
+};
+
+function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: DaySectionProps) {
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [addingNew, setAddingNew] = useState(false);
+    const [removingId, setRemovingId] = useState<number | null>(null);
+
+    return (
+        <section className='relative overflow-hidden rounded-2xl border border-stone-200/80 bg-stone-50/50 pl-4 dark:border-stone-600/50 dark:bg-stone-900/30'>
+            <div className='absolute bottom-0 left-0 top-0 w-1 bg-gradient-to-b from-amber-500 to-indigo-700 opacity-90 dark:from-amber-400 dark:to-indigo-500' aria-hidden />
+            <div className='py-4 pl-4 pr-4'>
+                <h3 className='text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400'>
+                    {day.dayOfWeek} — {day.date}
+                    {day.serviceType ? ` · ${day.serviceType}${day.time ? ` · ${day.time}` : ''}` : ''}
+                </h3>
+
+                {day.officiants.length === 0 && !addingNew && (
+                    <p className='mt-2 text-sm text-stone-500 dark:text-stone-400'>No officiants assigned</p>
+                )}
+
+                {day.officiants.length > 0 && (
+                    <ul className='mt-3 space-y-2'>
+                        {day.officiants.map((o: OfficiantAssignment) => (
+                            <li key={o.id} className='rounded-xl border border-stone-200/60 bg-white/90 px-3 py-2.5 dark:border-stone-600/40 dark:bg-stone-950/40'>
+                                {editingId === o.id ? (
+                                    <AssignmentForm
+                                        people={people}
+                                        initial={{ personId: o.personId, role: o.role }}
+                                        onSave={async (pId, r) => {
+                                            await onEdit(o.id, pId, r);
+                                            setEditingId(null);
+                                        }}
+                                        onCancel={() => setEditingId(null)}
+                                    />
+                                ) : (
+                                    <div className='flex items-center justify-between gap-4 text-sm'>
+                                        <div className='flex flex-wrap items-center gap-2'>
+                                            <span className='font-medium text-indigo-900 dark:text-indigo-200'>{o.role}</span>
+                                            <span className='text-stone-400 dark:text-stone-500'>·</span>
+                                            <span className='text-stone-800 dark:text-stone-100'>{o.personName}</span>
+                                            {o.confirmed && (
+                                                <span className='rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'>
+                                                    Confirmed
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className='flex shrink-0 flex-wrap items-center gap-1'>
+                                            <button
+                                                type='button'
+                                                onClick={() => onToggleConfirm(o.id, !o.confirmed)}
+                                                className={btnTableSecondary}
+                                            >
+                                                {o.confirmed ? 'Unconfirm' : 'Confirm'}
+                                            </button>
+                                            <button
+                                                type='button'
+                                                onClick={() => { setEditingId(o.id); setRemovingId(null); setAddingNew(false); }}
+                                                className={btnTableSecondary}
+                                            >
+                                                Edit
+                                            </button>
+                                            {removingId === o.id ? (
+                                                <span className='flex items-center gap-1 text-xs'>
+                                                    <span className='text-stone-500 dark:text-stone-400'>Sure?</span>
+                                                    <button type='button' onClick={() => { onRemove(o.id); setRemovingId(null); }} className={btnDanger}>Yes</button>
+                                                    <button type='button' onClick={() => setRemovingId(null)} className='text-xs text-stone-400 hover:text-stone-600'>No</button>
+                                                </span>
+                                            ) : (
+                                                <button type='button' onClick={() => setRemovingId(o.id)} className={btnDanger}>Remove</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
+                {addingNew ? (
+                    <AssignmentForm
+                        people={people}
+                        onSave={async (pId, r) => {
+                            await onAdd(day.serviceId, pId, r);
+                            setAddingNew(false);
+                        }}
+                        onCancel={() => setAddingNew(false)}
+                    />
+                ) : (
+                    <button
+                        type='button'
+                        onClick={() => { setAddingNew(true); setEditingId(null); }}
+                        className='mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200'
+                    >
+                        + Add officiant
+                    </button>
+                )}
+            </div>
+        </section>
+    );
+}
+
+export default function ScheduleViewDisplay({ schedule: initialSchedule, onClose, onScheduleChanged }: ScheduleViewDisplayProps) {
+    const [schedule, setSchedule] = useState<ScheduleWeekDetail>(initialSchedule);
+    const [people, setPeople] = useState<Person[]>([]);
+
+    useEffect(() => {
+        api('/people').then((data) => setPeople(Array.isArray(data) ? data : [])).catch(() => {});
+    }, []);
+
+    const refresh = async () => {
+        try {
+            const all = await api('/schedule');
+            const updated = Array.isArray(all) ? all.find((s: ScheduleWeekDetail) => s.id === schedule.id) : null;
+            if (updated) {
+                setSchedule(updated);
+                onScheduleChanged?.();
+            }
+        } catch {
+            // silently keep stale state
+        }
+    };
+
+    const handleAdd = async (serviceId: number, personId: number, role: string) => {
+        await api('/assignments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service_id: serviceId, person_id: personId, role }),
+        });
+        await refresh();
+    };
+
+    const handleEdit = async (assignmentId: number, personId: number, role: string) => {
+        await api(`/assignments/${assignmentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ person_id: personId, role }),
+        });
+        await refresh();
+    };
+
+    const handleRemove = async (assignmentId: number) => {
+        await api(`/assignments/${assignmentId}`, { method: 'DELETE' });
+        await refresh();
+    };
+
+    const handleToggleConfirm = async (assignmentId: number, confirmed: boolean) => {
+        await api(`/assignments/${assignmentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirmed }),
+        });
+        await refresh();
+    };
+
     return (
         <ModalShell
             onClose={onClose}
@@ -21,65 +259,36 @@ export default function ScheduleViewDisplay({
                     </p>
                     <h2 className='mt-2 font-[family-name:var(--font-fraunces),Georgia,serif] text-2xl font-medium tracking-tight text-indigo-950 dark:text-indigo-50 sm:text-3xl'>
                         {schedule.startDate}{' '}
-                        <span className='text-amber-600/70 dark:text-amber-400/60'>
-                            –
-                        </span>{' '}
+                        <span className='text-amber-600/70 dark:text-amber-400/60'>–</span>{' '}
                         {schedule.endDate}
                     </h2>
                     <p className='mt-1 text-sm text-stone-600 dark:text-stone-400'>
                         {schedule.month} {schedule.year}
                     </p>
                 </div>
-                <button
-                    type='button'
-                    onClick={onClose}
-                    className={btnSecondary}
-                >
-                    Close
-                </button>
+                <div className='flex shrink-0 gap-2'>
+                    <button type='button' onClick={() => exportToExcel(schedule)} className={btnSecondary}>
+                        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4' aria-hidden>
+                            <path strokeLinecap='round' strokeLinejoin='round' d='M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3' />
+                        </svg>
+                        Export
+                    </button>
+                    <button type='button' onClick={onClose} className={btnSecondary}>
+                        Close
+                    </button>
+                </div>
             </div>
             <div className='max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin] sm:max-h-[min(70vh,32rem)]'>
                 {schedule.days.map((day) => (
-                    <section
+                    <DaySection
                         key={day.date}
-                        className='relative overflow-hidden rounded-2xl border border-stone-200/80 bg-stone-50/50 pl-4 dark:border-stone-600/50 dark:bg-stone-900/30'
-                    >
-                        <div
-                            className='absolute bottom-0 left-0 top-0 w-1 bg-gradient-to-b from-amber-500 to-indigo-700 opacity-90 dark:from-amber-400 dark:to-indigo-500'
-                            aria-hidden
-                        />
-                        <div className='py-4 pl-4 pr-4'>
-                            <h3 className='text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400'>
-                                {day.dayOfWeek} — {day.date}
-                                {day.serviceType
-                                    ? ` · ${day.serviceType}${
-                                          day.time ? ` · ${day.time}` : ''
-                                      }`
-                                    : ''}
-                            </h3>
-                            {day.officiants.length === 0 ? (
-                                <p className='mt-2 text-sm text-stone-500 dark:text-stone-400'>
-                                    No officiants assigned
-                                </p>
-                            ) : (
-                                <ul className='mt-3 space-y-2'>
-                                    {day.officiants.map((o, i) => (
-                                        <li
-                                            key={`${day.date}-${o.role}-${i}`}
-                                            className='flex items-center justify-between gap-4 rounded-xl border border-stone-200/60 bg-white/90 px-3 py-2.5 text-sm dark:border-stone-600/40 dark:bg-stone-950/40'
-                                        >
-                                            <span className='font-medium text-indigo-900 dark:text-indigo-200'>
-                                                {o.role}
-                                            </span>
-                                            <span className='text-stone-800 dark:text-stone-100'>
-                                                {o.personName}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </section>
+                        day={day}
+                        people={people}
+                        onAdd={handleAdd}
+                        onEdit={handleEdit}
+                        onRemove={handleRemove}
+                        onToggleConfirm={handleToggleConfirm}
+                    />
                 ))}
             </div>
         </ModalShell>

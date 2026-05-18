@@ -52,11 +52,11 @@ export default function PersonEditModal({
             setError('First name and last name are required.');
             return;
         }
-        if (!next.gender.trim()) {
+        if (!next.gender?.trim()) {
             setError('Gender is required.');
             return;
         }
-        if (!next.phone.trim()) {
+        if (!next.phone?.trim()) {
             setError('Phone is required.');
             return;
         }
@@ -129,7 +129,7 @@ export default function PersonEditModal({
                         </label>
 
                         <select
-                            value={draft.gender}
+                            value={draft.gender ?? ''}
                             onChange={(e) => update('gender', e.target.value)}
                             className={selectBase}
                         >
@@ -146,7 +146,7 @@ export default function PersonEditModal({
                             Phone
                         </label>
                         <input
-                            value={draft.phone}
+                            value={draft.phone ?? ''}
                             onChange={(e) => update('phone', e.target.value)}
                             className={inputBase}
                         />
