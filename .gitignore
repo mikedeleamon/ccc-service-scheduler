@@ -11,6 +11,12 @@ __pycache__/
 venv/
 env/
 
+# Node.js
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # Next.js
 frontend/ccc-service-scheduler/.next/
 frontend/ccc-service-scheduler/node_modules/
