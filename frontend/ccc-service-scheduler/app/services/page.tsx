@@ -4,13 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import BackButton from '@/components/BackButton/BackButton';
 import ServiceEditModal, { ServiceDraft } from '@/components/modals/ServiceEditModal';
+import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
 import { api } from '@/lib/api';
 import { useParish } from '@/lib/ParishContext';
 import {
-    btnDanger,
     btnPrimary,
-    btnTableSecondary,
-    card,
     heading1,
     lead,
     pageContent,
@@ -20,6 +18,8 @@ import {
     tableTd,
     tableTh,
     tableWrap,
+    btnTableSecondary,
+    btnDanger,
 } from '@/lib/ui';
 
 type Service = {
@@ -40,8 +40,9 @@ export default function ServicesPage() {
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [editing, setEditing] = useState<ServiceDraft | null>(null);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [deletingService, setDeletingService] = useState<Service | null>(null);
     const [page, setPage] = useState(1);
     const pageSize = 10;
 
@@ -85,10 +86,17 @@ export default function ServicesPage() {
         }
     };
 
-    const handleDelete = async (id: number) => {
-        await api(`/services/${id}`, { method: 'DELETE' });
-        setServices((prev) => prev.filter((s) => s.id !== id));
-        setDeletingId(null);
+    const confirmDeleteService = async () => {
+        if (!deletingService) return;
+        const svc = deletingService;
+        setDeletingService(null);
+        setDeleteError(null);
+        try {
+            await api(`/services/${svc.id}`, { method: 'DELETE' });
+            setServices((prev) => prev.filter((s) => s.id !== svc.id));
+        } catch (err) {
+            setDeleteError(err instanceof Error ? err.message : 'Failed to delete service. Please try again.');
+        }
     };
 
     const blankDraft: ServiceDraft = { date: '', time: '', service_type: '' };
@@ -118,16 +126,47 @@ export default function ServicesPage() {
                     </header>
                 </div>
 
-                {loading && (
-                    <p className='text-sm text-stone-500 dark:text-stone-400'>Loading services…</p>
+                {/* Delete error banner */}
+                {deleteError && (
+                    <div className='rounded-2xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
+                        <p className='text-sm text-red-800 dark:text-red-200'>{deleteError}</p>
+                    </div>
                 )}
 
+                {/* Fetch error */}
                 {error && (
                     <div className='rounded-2xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
                         <p className='text-sm text-red-800 dark:text-red-200'>{error}</p>
                     </div>
                 )}
 
+                {/* Loading skeleton */}
+                {loading && (
+                    <div className={tableWrap}>
+                        <table className={`${table} min-w-[520px]`}>
+                            <thead>
+                                <tr className={tableHeadRow}>
+                                    <th className={tableTh}>Date</th>
+                                    <th className={tableTh}>Time</th>
+                                    <th className={tableTh}>Service type</th>
+                                    <th className={tableTh}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className='border-b border-stone-100 dark:border-stone-800/90'>
+                                        <td className={tableTd}><div className='h-3.5 w-40 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-14 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-32 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-24 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Empty state */}
                 {!loading && !error && services.length === 0 && (
                     <div className='flex flex-col items-center justify-center gap-6 rounded-[1.35rem] border border-dashed border-stone-300 bg-stone-50/60 px-8 py-20 text-center dark:border-stone-600 dark:bg-stone-900/30'>
                         <div className='flex size-16 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950/60'>
@@ -182,17 +221,13 @@ export default function ServicesPage() {
                                                 >
                                                     Edit
                                                 </button>
-                                                {deletingId === svc.id ? (
-                                                    <span className='flex items-center gap-2 text-sm'>
-                                                        <span className='text-stone-600 dark:text-stone-400'>Sure?</span>
-                                                        <button type='button' onClick={() => handleDelete(svc.id)} className={btnDanger}>Yes, delete</button>
-                                                        <button type='button' onClick={() => setDeletingId(null)} className='text-xs text-stone-400 hover:text-stone-600'>Cancel</button>
-                                                    </span>
-                                                ) : (
-                                                    <button type='button' onClick={() => setDeletingId(svc.id)} className={btnDanger}>
-                                                        Delete
-                                                    </button>
-                                                )}
+                                                <button
+                                                    type='button'
+                                                    onClick={() => setDeletingService(svc)}
+                                                    className={btnDanger}
+                                                >
+                                                    Delete
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -220,6 +255,14 @@ export default function ServicesPage() {
                         service={editing}
                         onClose={() => setEditing(null)}
                         onSave={handleSave}
+                    />
+                )}
+
+                {deletingService && (
+                    <DeleteConfirmModal
+                        label={`${formatDate(deletingService.date)} — ${deletingService.service_type}`}
+                        onCancel={() => setDeletingService(null)}
+                        onConfirm={confirmDeleteService}
                     />
                 )}
             </div>

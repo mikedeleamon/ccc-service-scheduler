@@ -21,8 +21,17 @@ import {
     tableWrap,
 } from '@/lib/ui';
 
+function formatDateStr(iso: string): string {
+    try {
+        const d = new Date(iso + 'T00:00:00');
+        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    } catch {
+        return iso;
+    }
+}
+
 function formatDateRange(start: string, end: string): string {
-    return `${start} – ${end}`;
+    return `${formatDateStr(start)} – ${formatDateStr(end)}`;
 }
 
 export default function SchedulesPage() {
@@ -88,7 +97,28 @@ export default function SchedulesPage() {
                 </div>
 
                 {loading && (
-                    <p className='text-sm text-stone-500 dark:text-stone-400'>Loading schedules…</p>
+                    <div className={tableWrap}>
+                        <table className={table}>
+                            <thead>
+                                <tr className={tableHeadRow}>
+                                    <th className={tableTh}>Date</th>
+                                    <th className={tableTh}>Month</th>
+                                    <th className={tableTh}>Year</th>
+                                    <th className={tableTh}>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className='border-b border-stone-100 dark:border-stone-800/90'>
+                                        <td className={tableTd}><div className='h-3.5 w-48 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-16 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-10 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-24 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
 
                 {error && (

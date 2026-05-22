@@ -170,15 +170,13 @@ export default function UploadPage() {
                         {[
                             ['first name', "Required — person's first name"],
                             ['last name', "Required — person's last name"],
-                            ['birthday', 'Optional — MM/DD'],
-                            ['gender', 'Required'],
+                            ['birth date', 'Optional — MM-DD (e.g. 03-15)'],
+                            ['gender', 'Optional — male / female'],
                             ['phone', 'Optional — contact number'],
                             ['parish', 'Optional — parish name'],
-                            ['email', 'Optional — unique'],
-                            ['rank', 'Required — e.g. superior evangelist'],
-                            ['ministry', 'Optional — e.g. choir, evangelism, etc.'],
-                            ['availability', 'Optional — JSON'],
-                            ['roles', 'Optional — comma-separated (usher, reader, …)'],
+                            ['email', 'Optional — used to match existing records'],
+                            ['rank', 'Required — e.g. Brother, Sister, Evangelist'],
+                            ['availability', 'Optional — {"sundays": true, "wednesdays": false}'],
                         ].map(([name, desc]) => (
                             <div key={name} className='rounded-xl border border-slate-200/80 bg-white/60 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40'>
                                 <span className='font-mono text-sm font-semibold text-slate-900 dark:text-white'>{name}</span>
@@ -189,7 +187,7 @@ export default function UploadPage() {
 
                     <div className='rounded-xl border border-amber-200/80 bg-amber-50/90 p-4 dark:border-amber-900/40 dark:bg-amber-950/30'>
                         <p className='text-xs text-amber-900 dark:text-amber-100'>
-                            <strong>Note:</strong> Headers must match exactly. The roles column uses comma-separated values split into an array on import.
+                            <strong>Note:</strong> Column headers must match exactly (lowercase). Only the nine columns above are read — any additional columns are ignored.
                         </p>
                     </div>
                 </div>

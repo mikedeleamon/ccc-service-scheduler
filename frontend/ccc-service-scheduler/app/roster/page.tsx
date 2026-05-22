@@ -10,13 +10,10 @@ import PersonDetailsModal from '@/components/modals/PersonDetailsModal';
 import PersonEditModal from '@/components/modals/PersonEditModal';
 import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
 import type { Person } from '@/types/types';
-import { fullName } from '@/lib/rosterUtils';
+import { formatAvailability, fullName } from '@/lib/rosterUtils';
 import { api } from '@/lib/api';
 import { useParish } from '@/lib/ParishContext';
 import {
-    btnDanger,
-    btnTablePrimary,
-    btnTableSecondary,
     heading1,
     inputBase,
     lead,
@@ -30,21 +27,13 @@ import {
     tableWrap,
 } from '@/lib/ui';
 
-function formatAvailability(availability: unknown): string {
-    if (availability == null) return '—';
-    if (typeof availability === 'string') return availability;
-    try {
-        return JSON.stringify(availability);
-    } catch {
-        return String(availability);
-    }
-}
-
 export default function RosterPage() {
     const { parish } = useParish();
     const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [viewing, setViewing] = useState<Person | null>(null);
     const [editing, setEditing] = useState<Person | null>(null);
     const [deleting, setDeleting] = useState<Person | null>(null);
@@ -104,6 +93,7 @@ export default function RosterPage() {
     }, [filtered, safePage, showPagination]);
 
     const handleSave = async (updated: Person) => {
+        setSaveError(null);
         try {
             if (updated.id && updated.id > 0) {
                 const saved = await api(`/people/${updated.id}`, {
@@ -121,7 +111,7 @@ export default function RosterPage() {
                 setPeople((prev) => [...prev, created]);
             }
         } catch (err) {
-            console.error('Save failed:', err);
+            setSaveError(err instanceof Error ? err.message : 'Failed to save person. Please try again.');
         }
     };
 
@@ -144,12 +134,13 @@ export default function RosterPage() {
         if (!deleting) return;
         const person = deleting;
         setDeleting(null);
+        setDeleteError(null);
         try {
             await api(`/people/${person.id}`, { method: 'DELETE' });
             setPeople((prev) => prev.filter((p) => p.id !== person.id));
             if (viewing?.id === person.id) setViewing(null);
         } catch (err) {
-            console.error('Delete failed:', err);
+            setDeleteError(err instanceof Error ? err.message : 'Failed to delete person. Please try again.');
         }
     };
 
@@ -173,16 +164,56 @@ export default function RosterPage() {
                     </header>
                 </div>
 
-                {loading && (
-                    <p className='text-sm text-stone-500 dark:text-stone-400'>Loading roster…</p>
+                {/* Operation error banners */}
+                {saveError && (
+                    <div className='rounded-2xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
+                        <p className='text-sm text-red-800 dark:text-red-200'>{saveError}</p>
+                    </div>
+                )}
+                {deleteError && (
+                    <div className='rounded-2xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
+                        <p className='text-sm text-red-800 dark:text-red-200'>{deleteError}</p>
+                    </div>
                 )}
 
+                {/* Fetch error */}
                 {error && (
                     <div className='rounded-2xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
                         <p className='text-sm text-red-800 dark:text-red-200'>{error}</p>
                     </div>
                 )}
 
+                {/* Loading skeleton */}
+                {loading && (
+                    <div className={`${tableWrap} max-w-full`}>
+                        <table className={`${table} min-w-[660px]`}>
+                            <thead>
+                                <tr className={tableHeadRow}>
+                                    <th className={tableTh}>Name</th>
+                                    <th className={tableTh}>Gender</th>
+                                    <th className={tableTh}>Rank</th>
+                                    <th className={tableTh}>Phone</th>
+                                    <th className={tableTh}>Availability</th>
+                                    <th className={tableTh} />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <tr key={i} className='border-b border-stone-100 dark:border-stone-800/90'>
+                                        <td className={tableTd}><div className='h-3.5 w-32 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-12 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-24 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-24 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd}><div className='h-3.5 w-36 animate-pulse rounded-full bg-stone-200 dark:bg-stone-700' /></td>
+                                        <td className={tableTd} />
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Filters */}
                 {!loading && !error && people.length > 0 && (
                     <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
                         <div className='flex-1'>
@@ -225,6 +256,7 @@ export default function RosterPage() {
                     </div>
                 )}
 
+                {/* Empty state */}
                 {!loading && !error && people.length === 0 && (
                     <div className='flex flex-col items-center justify-center gap-6 rounded-[1.35rem] border border-dashed border-stone-300 bg-stone-50/60 px-8 py-20 text-center dark:border-stone-600 dark:bg-stone-900/30'>
                         <div className='flex size-16 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950/60'>
@@ -247,15 +279,17 @@ export default function RosterPage() {
                     </div>
                 )}
 
+                {/* No results from filter */}
                 {!loading && !error && people.length > 0 && filtered.length === 0 && (
                     <div className='rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 px-8 py-12 text-center dark:border-stone-600 dark:bg-stone-900/30'>
                         <p className='text-sm text-stone-500 dark:text-stone-400'>No people match your filters.</p>
                     </div>
                 )}
 
+                {/* Data table — rows are clickable to open the details modal */}
                 {!loading && !error && filtered.length > 0 && (
                     <div className={`${tableWrap} max-w-full`}>
-                        <table className={`${table} min-w-[900px]`}>
+                        <table className={`${table} min-w-[660px]`}>
                             <thead>
                                 <tr className={tableHeadRow}>
                                     <th className={tableTh}>Name</th>
@@ -263,50 +297,32 @@ export default function RosterPage() {
                                     <th className={tableTh}>Rank</th>
                                     <th className={tableTh}>Phone</th>
                                     <th className={tableTh}>Availability</th>
-                                    <th className={tableTh}>Details</th>
-                                    <th className={tableTh}>Actions</th>
+                                    <th className={tableTh} />
                                 </tr>
                             </thead>
                             <tbody>
                                 {pageRows.map((p) => (
-                                    <tr key={p.id} className={tableRow}>
+                                    <tr
+                                        key={p.id}
+                                        className={`${tableRow} cursor-pointer`}
+                                        onClick={() => setViewing(p)}
+                                        tabIndex={0}
+                                        onKeyDown={(e) => e.key === 'Enter' && setViewing(p)}
+                                        aria-label={`View details for ${fullName(p)}`}
+                                    >
                                         <td className={`${tableTd} font-medium text-stone-900 dark:text-stone-100`}>
                                             {fullName(p)}
                                         </td>
                                         <td className={tableTd}>{p.gender ?? '—'}</td>
                                         <td className={tableTd}>{p.rank}</td>
                                         <td className={tableTd}>{p.phone ?? '—'}</td>
-                                        <td className={`${tableTd} max-w-[320px]`}>
-                                            <span className='block truncate font-mono text-xs text-stone-500 dark:text-stone-400'>
+                                        <td className={`${tableTd} max-w-[280px]`}>
+                                            <span className='block truncate text-sm text-stone-600 dark:text-stone-300'>
                                                 {formatAvailability(p.availability)}
                                             </span>
                                         </td>
-                                        <td className={tableTd}>
-                                            <button
-                                                type='button'
-                                                onClick={() => setViewing(p)}
-                                                className={btnTablePrimary}
-                                            >
-                                                View details
-                                            </button>
-                                        </td>
-                                        <td className={tableTd}>
-                                            <div className='flex flex-wrap items-center gap-2'>
-                                                <button
-                                                    type='button'
-                                                    onClick={() => setEditing(p)}
-                                                    className={btnTableSecondary}
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    type='button'
-                                                    onClick={() => setDeleting(p)}
-                                                    className={btnDanger}
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
+                                        <td className={`${tableTd} w-6 text-right`}>
+                                            <span className='text-stone-300 dark:text-stone-600' aria-hidden>›</span>
                                         </td>
                                     </tr>
                                 ))}
@@ -315,6 +331,7 @@ export default function RosterPage() {
                     </div>
                 )}
 
+                {/* Pagination */}
                 {showPagination && (
                     <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                         <p className='text-sm text-stone-600 dark:text-stone-400'>
@@ -344,8 +361,14 @@ export default function RosterPage() {
                     </div>
                 )}
 
+                {/* Modals */}
                 {viewing && (
-                    <PersonDetailsModal person={viewing} onClose={() => setViewing(null)} />
+                    <PersonDetailsModal
+                        person={viewing}
+                        onClose={() => setViewing(null)}
+                        onEdit={(p) => { setViewing(null); setEditing(p); }}
+                        onDelete={(p) => { setViewing(null); setDeleting(p); }}
+                    />
                 )}
                 {editing && (
                     <PersonEditModal
@@ -356,7 +379,7 @@ export default function RosterPage() {
                 )}
                 {deleting && (
                     <DeleteConfirmModal
-                        person={deleting}
+                        label={fullName(deleting)}
                         onCancel={() => setDeleting(null)}
                         onConfirm={confirmDelete}
                     />

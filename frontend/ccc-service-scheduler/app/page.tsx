@@ -1,15 +1,41 @@
 'use client';
 
+import Link from 'next/link';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
-import AutoScheduleButton from '@/components/AutoScheduleButton/AutoScheduleButton';
-import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
-import ViewScheduleButton from '@/components/ViewScheduleButton/ViewScheduleButton';
-import ViewRosterButton from '@/components/ViewRosterButton/ViewRosterButton';
 import { useParish } from '@/lib/ParishContext';
-import { card, heading1, lead, selectBase } from '@/lib/ui';
+import { btnPrimary, btnSecondary, card, heading1, lead, selectBase } from '@/lib/ui';
+
+const STEPS: { href: string; cta: string; label: string; desc: string; primary?: true }[] = [
+    {
+        href: '/upload',
+        cta: 'Upload sheet',
+        label: 'Import your roster',
+        desc: 'Upload an Excel spreadsheet with member names, ranks, and availability.',
+        primary: true,
+    },
+    {
+        href: '/services',
+        cta: 'Add services',
+        label: 'Add services',
+        desc: 'Enter the upcoming services that need officiants assigned.',
+    },
+    {
+        href: '/auto-schedule',
+        cta: 'Auto-schedule',
+        label: 'Generate a schedule',
+        desc: 'Auto-assign officiants based on rank and availability.',
+    },
+    {
+        href: '/schedules',
+        cta: 'View schedules',
+        label: 'Review assignments',
+        desc: 'Browse, confirm, and adjust the week-by-week schedule.',
+    },
+];
 
 export default function Home() {
     const { parish, setParish, parishes, loading: parishLoading } = useParish();
+
     return (
         <SidebarLayout>
             <div className='mx-auto flex w-full max-w-3xl flex-col py-2 sm:py-5'>
@@ -36,14 +62,13 @@ export default function Home() {
                         <h1
                             className={`${heading1} mt-4 text-balance border-l-2 border-amber-500/70 pl-4 dark:border-amber-400/50`}
                         >
-                            Welcome to the CCC Service Scheduler
+                            CCC Service Scheduler
                         </h1>
 
                         <div className={`${lead} mt-6 space-y-5 text-pretty`}>
                             <p>
-                                In development — built to assign parish services
-                                fairly while respecting rank, availability, and
-                                every service&apos;s time and place.
+                                Assign parish services fairly while respecting rank,
+                                availability, and every service&apos;s time and place.
                             </p>
                             <div>
                                 <p className='font-medium text-indigo-950 dark:text-indigo-100'>
@@ -75,6 +100,7 @@ export default function Home() {
                     </div>
 
                     <div className='relative mt-10 space-y-6 border-t border-stone-200/70 pt-8 dark:border-stone-600/50'>
+                        {/* Parish filter */}
                         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
                             <label className='flex items-center gap-2 text-sm font-medium text-stone-700 dark:text-stone-300'>
                                 <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4 text-amber-600 dark:text-amber-400' aria-hidden>
@@ -102,11 +128,33 @@ export default function Home() {
                             )}
                         </div>
 
-                        <div className='flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap'>
-                            <AutoScheduleButton />
-                            <UploadSheetButton />
-                            <ViewScheduleButton />
-                            <ViewRosterButton />
+                        {/* Numbered getting-started steps */}
+                        <div className='space-y-3'>
+                            <p className='text-[10.5px] font-semibold uppercase tracking-[0.22em] text-stone-400 dark:text-stone-500'>
+                                Getting started
+                            </p>
+                            <ol className='space-y-2.5'>
+                                {STEPS.map(({ href, cta, label, desc, primary }, i) => (
+                                    <li
+                                        key={href}
+                                        className='flex items-start gap-3.5 rounded-2xl border border-stone-200/70 bg-white/60 px-4 py-3.5 dark:border-stone-700/40 dark:bg-stone-800/20'
+                                    >
+                                        <span className='mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 font-mono text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'>
+                                            {i + 1}
+                                        </span>
+                                        <div className='min-w-0 flex-1'>
+                                            <p className='text-sm font-semibold text-stone-900 dark:text-stone-50'>{label}</p>
+                                            <p className='mt-0.5 text-xs leading-relaxed text-stone-500 dark:text-stone-400'>{desc}</p>
+                                        </div>
+                                        <Link
+                                            href={href}
+                                            className={`${primary ? btnPrimary : btnSecondary} shrink-0`}
+                                        >
+                                            {cta}
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ol>
                         </div>
                     </div>
                 </div>
