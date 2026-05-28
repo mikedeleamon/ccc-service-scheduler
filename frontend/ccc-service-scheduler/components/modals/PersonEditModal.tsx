@@ -147,7 +147,7 @@ export default function PersonEditModal({ person, onClose, onSave }: PersonEditP
                         >
                             <option value=''>Select rank</option>
                             {draft.gender &&
-                                RANKS_BY_GENDER[draft.gender as Gender].map((rank) => (
+                                RANKS_BY_GENDER[draft.gender as Gender]?.map((rank) => (
                                     <option key={rank} value={rank}>{rank}</option>
                                 ))}
                         </select>
