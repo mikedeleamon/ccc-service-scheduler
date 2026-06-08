@@ -13,6 +13,7 @@ class PersonBase(BaseModel):
     email: Optional[str] = None
     rank: str
     availability: Optional[Any] = None
+    is_shepherd: Optional[bool] = False
 
 
 class PersonCreate(PersonBase):
@@ -29,6 +30,7 @@ class PersonUpdate(BaseModel):
     email: Optional[str] = None
     rank: Optional[str] = None
     availability: Optional[Any] = None
+    is_shepherd: Optional[bool] = None
 
 
 class PersonOut(PersonBase):

@@ -2,26 +2,58 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { btnPrimary } from '@/lib/ui';
+import { useParish } from '@/lib/ParishContext';
+import { btnPrimary, inputBase } from '@/lib/ui';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
+
+type Unfilled = { serviceId: number; role: string; date: string | null; serviceType: string | null };
 
 type Props = {
     onSuccess?: () => void;
 };
 
+function monthRange(month: string): { start: string; end: string } {
+    // month is "YYYY-MM"
+    const [y, m] = month.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 0)); // day 0 of next month = last day of this month
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    return { start: iso(start), end: iso(end) };
+}
+
 export default function AutoScheduleButton({ onSuccess }: Props) {
+    const { parish } = useParish();
     const [status, setStatus] = useState<Status>('idle');
     const [message, setMessage] = useState<string | null>(null);
+    const [unfilled, setUnfilled] = useState<Unfilled[]>([]);
+    const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
     const run = async () => {
         setStatus('running');
         setMessage(null);
+        setUnfilled([]);
         try {
-            const res = await api('/schedule', { method: 'POST' });
-            const count = Array.isArray(res) ? res.length : (res?.weeks ?? res?.count ?? '?');
+            const { start, end } = monthRange(month);
+            const res = await api('/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    parish: parish || null,
+                    start_date: start,
+                    end_date: end,
+                }),
+            });
+            if (res?.detail) throw new Error(res.detail);
+
+            const weeks = Array.isArray(res?.weeks) ? res.weeks : [];
+            const gaps: Unfilled[] = Array.isArray(res?.unfilled) ? res.unfilled : [];
             setStatus('success');
-            setMessage(`Schedule generated — ${count} week${count !== 1 ? 's' : ''} created.`);
+            setUnfilled(gaps);
+            setMessage(
+                `Schedule generated — ${weeks.length} week${weeks.length !== 1 ? 's' : ''} filled.` +
+                (gaps.length ? ` ${gaps.length} position${gaps.length !== 1 ? 's' : ''} could not be filled.` : ''),
+            );
             onSuccess?.();
         } catch (e) {
             setStatus('error');
@@ -31,6 +63,19 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
 
     return (
         <div className='space-y-3'>
+            <div className='space-y-1'>
+                <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>Month</label>
+                <input
+                    type='month'
+                    value={month}
+                    onChange={(e) => setMonth(e.target.value)}
+                    className={inputBase}
+                />
+                {parish && (
+                    <p className='text-xs text-stone-400 dark:text-stone-500'>Parish: {parish}</p>
+                )}
+            </div>
+
             <button
                 type='button'
                 onClick={run}
@@ -62,6 +107,19 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
                         : 'border-red-200/80 bg-red-50/90 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200'
                 }`}>
                     {message}
+                </div>
+            )}
+
+            {unfilled.length > 0 && (
+                <div className='rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200'>
+                    <p className='font-medium'>Unfilled positions</p>
+                    <ul className='mt-1 space-y-0.5'>
+                        {unfilled.map((u, i) => (
+                            <li key={i}>
+                                {u.date ?? '?'} — {u.serviceType ?? 'Service'}: {u.role}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
         </div>

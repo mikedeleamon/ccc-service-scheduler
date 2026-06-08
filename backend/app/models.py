@@ -15,6 +15,7 @@ class Person(Base):
     email = Column(String, unique=True, nullable=True)
     rank = Column(String, nullable=False)
     availability = Column(JSON, nullable=True)
+    is_shepherd = Column(Boolean, default=False)
 
 class Service(Base):
     __tablename__ = "services"

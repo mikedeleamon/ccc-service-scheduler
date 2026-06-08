@@ -8,8 +8,11 @@ const SERVICE_TYPES = [
     'Devotional Service',
     'Mercy Day Service',
     'Power Day Service',
-    'Harvest Service',
-    'Special Service',
+    'New Moon Service',
+    'Easter Service',
+    'Christmas Service',
+    'New Years Service',
+    'Youth Service',
 ];
 
 export type ServiceDraft = {

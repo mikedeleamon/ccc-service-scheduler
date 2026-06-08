@@ -153,6 +153,23 @@ export default function PersonEditModal({ person, onClose, onSave }: PersonEditP
                         </select>
                     </div>
 
+                    {draft.gender === Gender.MALE && (
+                        <div className='space-y-1 sm:col-span-2'>
+                            <label className='flex items-center gap-2.5 text-sm font-medium text-stone-700 dark:text-stone-300'>
+                                <input
+                                    type='checkbox'
+                                    checked={!!draft.is_shepherd}
+                                    onChange={(e) => update('is_shepherd', e.target.checked)}
+                                    className='size-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500 dark:border-stone-600'
+                                />
+                                Shepherd in charge
+                            </label>
+                            <p className='text-xs text-stone-400 dark:text-stone-500'>
+                                The shepherd preaches on first Sundays, Easter & Christmas, and conducts appointment services.
+                            </p>
+                        </div>
+                    )}
+
                     <div className='space-y-2 sm:col-span-2'>
                         <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>Availability</label>
                         <div className='flex flex-wrap gap-2'>

@@ -11,6 +11,7 @@ export type Person = {
     email?: string | null;
     rank: Rank | '';
     availability?: unknown;
+    is_shepherd?: boolean;
 };
 
 export type PersonEditProps = {
