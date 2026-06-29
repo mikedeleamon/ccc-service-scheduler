@@ -7,7 +7,7 @@ from app.api import people, services, schedule, import_excel, assignments
 from app.deps import get_db
 from app.models import Person
 
-app = FastAPI(title="Church Scheduler API")
+app = FastAPI(title="Church Scheduler API", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

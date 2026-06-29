@@ -60,6 +60,7 @@ export default function PersonDetailsModal({ person, onClose, onEdit, onDelete }
         { label: 'Parish',       value: person.parish ?? '—' },
         { label: 'Email',        value: person.email ?? '—' },
         { label: 'Rank',         value: person.rank },
+        { label: 'Shepherd',     value: person.is_shepherd ? 'Yes' : 'No' },
         { label: 'Availability', value: formatAvailability(person.availability) },
     ];
 

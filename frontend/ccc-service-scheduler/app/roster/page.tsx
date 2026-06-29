@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import BackButton from '@/components/BackButton/BackButton';
 import UploadSheetButton from '@/components/UploadSheetButton/UploadSheetButton';
@@ -14,6 +15,8 @@ import { formatAvailability, fullName } from '@/lib/rosterUtils';
 import { api } from '@/lib/api';
 import { useParish } from '@/lib/ParishContext';
 import {
+    btnSecondary,
+    btnDangerSolid,
     heading1,
     inputBase,
     lead,
@@ -41,15 +44,22 @@ export default function RosterPage() {
     const [search, setSearch] = useState('');
     const [rankFilter, setRankFilter] = useState('');
     const [genderFilter, setGenderFilter] = useState('');
+    const [selected, setSelected] = useState<Set<number>>(new Set());
+    const [bulkConfirm, setBulkConfirm] = useState(false);
+    const [undoPerson, setUndoPerson] = useState<Person | null>(null);
+    const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         setLoading(true);
+        setSelected(new Set());
         const params = parish ? `?parish=${encodeURIComponent(parish)}` : '';
         api(`/people${params}`)
             .then((data) => setPeople(Array.isArray(data) ? data : []))
             .catch((err) => setError(err.message ?? 'Failed to load roster'))
             .finally(() => setLoading(false));
     }, [parish]);
+
+    useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
     const ranks = useMemo(() => {
         const set = new Set(people.map((p) => p.rank).filter(Boolean));
@@ -123,11 +133,17 @@ export default function RosterPage() {
             birth_date: '',
             gender: '',
             phone: '',
-            parish: '',
+            parish: parish || '',
             email: '',
             rank: '',
             availability: null,
         });
+    };
+
+    const showUndo = (person: Person) => {
+        setUndoPerson(person);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        undoTimer.current = setTimeout(() => setUndoPerson(null), 8000);
     };
 
     const confirmDelete = async () => {
@@ -139,9 +155,73 @@ export default function RosterPage() {
             await api(`/people/${person.id}`, { method: 'DELETE' });
             setPeople((prev) => prev.filter((p) => p.id !== person.id));
             if (viewing?.id === person.id) setViewing(null);
+            showUndo(person);
         } catch (err) {
             setDeleteError(err instanceof Error ? err.message : 'Failed to delete person. Please try again.');
         }
+    };
+
+    const undoDelete = async () => {
+        if (!undoPerson) return;
+        const person = undoPerson;
+        setUndoPerson(null);
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        setSaveError(null);
+        try {
+            const { id: _omit, ...rest } = person;
+            void _omit;
+            const restored = await api('/people', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rest),
+            });
+            setPeople((prev) => [...prev, restored]);
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Could not restore the deleted person.');
+        }
+    };
+
+    const toggleSelect = (id: number) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const confirmBulkDelete = async () => {
+        setBulkConfirm(false);
+        setDeleteError(null);
+        const ids = Array.from(selected);
+        const results = await Promise.allSettled(
+            ids.map((id) => api(`/people/${id}`, { method: 'DELETE' })),
+        );
+        const deletedIds = new Set(ids.filter((_, i) => results[i].status === 'fulfilled'));
+        const failures = results.filter((r) => r.status === 'rejected').length;
+        setPeople((prev) => prev.filter((p) => !deletedIds.has(p.id)));
+        setSelected(new Set());
+        if (failures > 0) {
+            setDeleteError(`${failures} of ${ids.length} could not be deleted. Please try again.`);
+        }
+    };
+
+    const exportRoster = () => {
+        const rows = filtered.map((p) => ({
+            'First name': p.first_name,
+            'Last name': p.last_name,
+            'Birth date': p.birth_date ?? '',
+            Gender: p.gender ?? '',
+            Phone: p.phone ?? '',
+            Parish: p.parish ?? '',
+            Email: p.email ?? '',
+            Rank: p.rank,
+            Shepherd: p.is_shepherd ? 'Yes' : 'No',
+            Availability: formatAvailability(p.availability),
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Roster');
+        XLSX.writeFile(wb, `roster${parish ? `-${parish}` : ''}.xlsx`);
     };
 
     return (
@@ -160,6 +240,14 @@ export default function RosterPage() {
                             <UploadSheetButton />
                             <ViewScheduleButton />
                             <AddPersonButton onClick={handleAddPerson} />
+                            {people.length > 0 && (
+                                <button type='button' onClick={exportRoster} className={btnSecondary}>
+                                    <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4' aria-hidden>
+                                        <path strokeLinecap='round' strokeLinejoin='round' d='M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3' />
+                                    </svg>
+                                    Export
+                                </button>
+                            )}
                         </div>
                     </header>
                 </div>
@@ -286,12 +374,45 @@ export default function RosterPage() {
                     </div>
                 )}
 
+                {/* Bulk-action bar */}
+                {!loading && !error && selected.size > 0 && (
+                    <div className='flex flex-col gap-3 rounded-2xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/40 sm:flex-row sm:items-center sm:justify-between'>
+                        <p className='text-sm font-medium text-indigo-900 dark:text-indigo-200'>
+                            {selected.size} selected
+                        </p>
+                        <div className='flex items-center gap-2'>
+                            <button type='button' onClick={() => setSelected(new Set())} className={btnSecondary}>
+                                Clear
+                            </button>
+                            <button type='button' onClick={() => setBulkConfirm(true)} className={btnDangerSolid}>
+                                Delete selected
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Data table — rows are clickable to open the details modal */}
                 {!loading && !error && filtered.length > 0 && (
                     <div className={`${tableWrap} max-w-full`}>
                         <table className={`${table} min-w-[660px]`}>
                             <thead>
                                 <tr className={tableHeadRow}>
+                                    <th className={`${tableTh} w-10`}>
+                                        <input
+                                            type='checkbox'
+                                            aria-label='Select all on this page'
+                                            checked={pageRows.length > 0 && pageRows.every((p) => selected.has(p.id))}
+                                            onChange={(e) => {
+                                                setSelected((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (e.target.checked) pageRows.forEach((p) => next.add(p.id));
+                                                    else pageRows.forEach((p) => next.delete(p.id));
+                                                    return next;
+                                                });
+                                            }}
+                                            className='size-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500 dark:border-stone-600'
+                                        />
+                                    </th>
                                     <th className={tableTh}>Name</th>
                                     <th className={tableTh}>Gender</th>
                                     <th className={tableTh}>Rank</th>
@@ -310,6 +431,15 @@ export default function RosterPage() {
                                         onKeyDown={(e) => e.key === 'Enter' && setViewing(p)}
                                         aria-label={`View details for ${fullName(p)}`}
                                     >
+                                        <td className={`${tableTd} w-10`} onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type='checkbox'
+                                                aria-label={`Select ${fullName(p)}`}
+                                                checked={selected.has(p.id)}
+                                                onChange={() => toggleSelect(p.id)}
+                                                className='size-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500 dark:border-stone-600'
+                                            />
+                                        </td>
                                         <td className={`${tableTd} font-medium text-stone-900 dark:text-stone-100`}>
                                             {fullName(p)}
                                         </td>
@@ -383,6 +513,29 @@ export default function RosterPage() {
                         onCancel={() => setDeleting(null)}
                         onConfirm={confirmDelete}
                     />
+                )}
+                {bulkConfirm && (
+                    <DeleteConfirmModal
+                        label={`${selected.size} ${selected.size === 1 ? 'person' : 'people'}`}
+                        onCancel={() => setBulkConfirm(false)}
+                        onConfirm={confirmBulkDelete}
+                    />
+                )}
+
+                {/* Undo toast for single deletions */}
+                {undoPerson && (
+                    <div className='fixed inset-x-0 bottom-6 z-50 flex justify-center px-4'>
+                        <div className='flex items-center gap-4 rounded-2xl border border-stone-700 bg-stone-900 px-5 py-3 text-sm text-white shadow-xl dark:border-stone-600'>
+                            <span>Deleted <strong>{fullName(undoPerson)}</strong></span>
+                            <button
+                                type='button'
+                                onClick={undoDelete}
+                                className='font-semibold text-amber-400 underline-offset-2 hover:underline'
+                            >
+                                Undo
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
         </SidebarLayout>

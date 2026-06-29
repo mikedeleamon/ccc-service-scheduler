@@ -27,6 +27,33 @@ def _week_bounds(d: date):
 
 
 def _build_schedule_response(services: list, db: Session) -> List[dict]:
+    if not services:
+        return []
+
+    svc_ids = [s.id for s in services]
+
+    # Bulk-load all assignments for the given services in one query.
+    all_assignments = (
+        db.query(Officiant_Assignment)
+        .filter(Officiant_Assignment.service_id.in_(svc_ids))
+        .all()
+    )
+
+    # Bulk-load the names of every person referenced by those assignments.
+    person_ids = {a.person_id for a in all_assignments}
+    person_map: dict[int, str] = {}
+    if person_ids:
+        people = db.query(Person.id, Person.first_name, Person.last_name).filter(
+            Person.id.in_(person_ids)
+        ).all()
+        person_map = {p.id: f"{p.first_name} {p.last_name}" for p in people}
+
+    # Index assignments by service_id so we can look them up in O(1).
+    assignments_by_svc: dict[int, list] = defaultdict(list)
+    for a in all_assignments:
+        assignments_by_svc[a.service_id].append(a)
+
+    # Group services into calendar weeks.
     weeks: dict = defaultdict(list)
     for svc in services:
         monday, _ = _week_bounds(svc.date)
@@ -37,21 +64,16 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
         week_end = week_start + timedelta(days=6)
         days = []
         for svc in sorted(weeks[week_start], key=lambda s: s.date):
-            assignments = (
-                db.query(Officiant_Assignment)
-                .filter(Officiant_Assignment.service_id == svc.id)
-                .all()
-            )
-            officiants = []
-            for a in assignments:
-                person = db.query(Person).filter(Person.id == a.person_id).first()
-                officiants.append({
+            officiants = [
+                {
                     "id": a.id,
                     "role": a.role,
-                    "personName": f"{person.first_name} {person.last_name}" if person else "Unknown",
+                    "personName": person_map.get(a.person_id, "Unknown"),
                     "personId": a.person_id,
                     "confirmed": a.confirmed,
-                })
+                }
+                for a in assignments_by_svc[svc.id]
+            ]
             days.append({
                 "serviceId": svc.id,
                 "dayOfWeek": svc.date.strftime("%A"),
@@ -71,16 +93,25 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
     return result
 
 
-@router.get("/")
-def get_schedules(parish: str = None, db: Session = Depends(get_db)):
+@router.get("")
+def get_schedules(
+    parish: str = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
     q = db.query(Service)
     if parish:
         q = q.filter(Service.parish == parish)
+    if start_date is not None:
+        q = q.filter(Service.date >= start_date)
+    if end_date is not None:
+        q = q.filter(Service.date <= end_date)
     services = q.order_by(Service.date).all()
     return _build_schedule_response(services, db)
 
 
-@router.post("/")
+@router.post("")
 def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depends(get_db)):
     body = body or AutoScheduleRequest()
 
@@ -95,14 +126,20 @@ def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depe
         raise HTTPException(status_code=400, detail="end_date must not be before start_date.")
     parish = body.parish
 
-    # 1. Generate the recurring service calendar, skipping any that already exist.
+    # 1. Generate the recurring service calendar.
+    #    Key on (date, time) so regenerating the same range overwrites the
+    #    existing service record at that slot instead of creating a duplicate.
     existing_q = db.query(Service).filter(Service.date >= start, Service.date <= end)
     if parish:
         existing_q = existing_q.filter(Service.parish == parish)
-    existing_keys = {(s.date, s.service_type) for s in existing_q.all()}
+    existing_by_slot = {(s.date, s.time): s for s in existing_q.all()}
 
     for spec in generate_services(start, end, parish):
-        if (spec["date"], spec["service_type"]) not in existing_keys:
+        key = (spec["date"], spec["time"])
+        if key in existing_by_slot:
+            # Update service_type in case it changed (e.g. Easter overrides a Sunday)
+            existing_by_slot[key].service_type = spec["service_type"]
+        else:
             db.add(Service(
                 date=spec["date"],
                 service_type=spec["service_type"],
@@ -145,32 +182,38 @@ def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depe
     assignments, unfilled = generate_schedule(svc_dicts, people_dicts)
 
     # 3. Replace unconfirmed assignments in range; keep confirmed ones untouched.
+    #    Do the delete + re-insert in a single transaction so a concurrent or
+    #    failed run can never leave the schedule half-rebuilt.
     svc_ids = [s.id for s in services]
-    db.query(Officiant_Assignment).filter(
-        Officiant_Assignment.service_id.in_(svc_ids),
-        Officiant_Assignment.confirmed == False,
-    ).delete(synchronize_session=False)
-
-    confirmed = (
-        db.query(Officiant_Assignment)
-        .filter(
-            Officiant_Assignment.service_id.in_(svc_ids),
-            Officiant_Assignment.confirmed == True,
+    try:
+        confirmed = (
+            db.query(Officiant_Assignment)
+            .filter(
+                Officiant_Assignment.service_id.in_(svc_ids),
+                Officiant_Assignment.confirmed == True,
+            )
+            .all()
         )
-        .all()
-    )
-    confirmed_slots = {(a.service_id, a.role) for a in confirmed}
+        confirmed_slots = {(a.service_id, a.role) for a in confirmed}
 
-    for a in assignments:
-        if (a["service_id"], a["role"]) in confirmed_slots:
-            continue  # don't overwrite a manually-confirmed position
-        db.add(Officiant_Assignment(
-            service_id=a["service_id"],
-            person_id=a["person_id"],
-            role=a["role"],
-            confirmed=False,
-        ))
-    db.commit()
+        db.query(Officiant_Assignment).filter(
+            Officiant_Assignment.service_id.in_(svc_ids),
+            Officiant_Assignment.confirmed == False,
+        ).delete(synchronize_session=False)
+
+        for a in assignments:
+            if (a["service_id"], a["role"]) in confirmed_slots:
+                continue  # don't overwrite a manually-confirmed position
+            db.add(Officiant_Assignment(
+                service_id=a["service_id"],
+                person_id=a["person_id"],
+                role=a["role"],
+                confirmed=False,
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save the generated schedule. No changes were made.")
 
     # 4. Build the response (weeks + any positions that couldn't be filled).
     svc_meta = {s.id: s for s in services}
@@ -178,6 +221,7 @@ def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depe
         {
             "serviceId": u["service_id"],
             "role": u["role"],
+            "reason": u.get("reason"),
             "date": svc_meta[u["service_id"]].date.isoformat() if u["service_id"] in svc_meta else None,
             "serviceType": svc_meta[u["service_id"]].service_type if u["service_id"] in svc_meta else None,
         }

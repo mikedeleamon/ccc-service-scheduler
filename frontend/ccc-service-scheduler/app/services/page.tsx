@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import BackButton from '@/components/BackButton/BackButton';
 import ServiceEditModal, { ServiceDraft } from '@/components/modals/ServiceEditModal';
+import ServiceDetailsModal from '@/components/modals/ServiceDetailsModal';
 import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
 import { api } from '@/lib/api';
 import { useParish } from '@/lib/ParishContext';
@@ -42,6 +43,7 @@ export default function ServicesPage() {
     const [error, setError] = useState<string | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [editing, setEditing] = useState<ServiceDraft | null>(null);
+    const [viewing, setViewing] = useState<Service | null>(null);
     const [deletingService, setDeletingService] = useState<Service | null>(null);
     const [page, setPage] = useState(1);
     const pageSize = 10;
@@ -216,6 +218,13 @@ export default function ServicesPage() {
                                             <div className='flex items-center gap-2'>
                                                 <button
                                                     type='button'
+                                                    onClick={() => setViewing(svc)}
+                                                    className={btnTableSecondary}
+                                                >
+                                                    View
+                                                </button>
+                                                <button
+                                                    type='button'
                                                     onClick={() => setEditing({ id: svc.id, date: svc.date, time: svc.time ?? '', service_type: svc.service_type })}
                                                     className={btnTableSecondary}
                                                 >
@@ -248,6 +257,22 @@ export default function ServicesPage() {
                             <button type='button' onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} className='rounded-2xl border border-stone-300/90 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800'>Next</button>
                         </div>
                     </div>
+                )}
+
+                {viewing && (
+                    <ServiceDetailsModal
+                        service={viewing}
+                        parish={parish}
+                        onClose={() => setViewing(null)}
+                        onEdit={(svc) => {
+                            setViewing(null);
+                            setEditing({ id: svc.id, date: svc.date, time: svc.time ?? '', service_type: svc.service_type });
+                        }}
+                        onDelete={(svc) => {
+                            setViewing(null);
+                            setDeletingService(svc);
+                        }}
+                    />
                 )}
 
                 {editing && (

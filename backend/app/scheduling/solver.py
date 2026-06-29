@@ -105,8 +105,25 @@ def generate_schedule(services: list[dict], people: list[dict]):
             load[person["id"]] += 1
             used.add(person["id"])
 
+        womens_roles = {SECOND_MEMBER_PRAYER, CLOSING_PRAYER}
+
         def fail(role: str):
-            unfilled.append({"service_id": svc["id"], "role": role})
+            # Give an actionable hint about *why* nobody could fill the slot.
+            if role in womens_roles:
+                if not females:
+                    reason = "no women on the roster for this parish"
+                elif not females_avail:
+                    reason = "no women available on this day"
+                else:
+                    reason = "all available women already assigned to other roles"
+            else:
+                if not males:
+                    reason = "no men on the roster for this parish"
+                elif not males_avail:
+                    reason = "no men available on this day"
+                else:
+                    reason = "all available men already assigned to other roles"
+            unfilled.append({"service_id": svc["id"], "role": role, "reason": reason})
 
         def pick_male(exclude: set):
             cands = [p for p in males_avail if p["id"] not in exclude]

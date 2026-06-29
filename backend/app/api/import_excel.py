@@ -80,17 +80,53 @@ async def import_people(file: UploadFile, db: Session = Depends(get_db)):
     created = 0
     updated = 0
     skipped = 0
+    skipped_rows: list[dict] = []
 
-    for _, row in df.iterrows():
+    # Track emails/names seen *within this upload* so two rows for the same
+    # person don't silently overwrite each other.
+    seen_emails: dict[str, int] = {}        # email -> first spreadsheet row number
+    seen_names: dict[tuple, int] = {}        # (first, last) lowercased -> row number
+
+    for idx, row in df.iterrows():
+        row_no = int(idx) + 2  # +1 for the header, +1 for 1-based display
+
         first_name = _clean_str(row.get("first name"))
         last_name = _clean_str(row.get("last name"))
         rank = _clean_str(row.get("rank"))
 
-        if not first_name or not last_name or not rank:
+        missing = [
+            label for label, value in (
+                ("first name", first_name),
+                ("last name", last_name),
+                ("rank", rank),
+            ) if not value
+        ]
+        if missing:
             skipped += 1
+            skipped_rows.append({"row": row_no, "reason": f"missing {', '.join(missing)}"})
             continue
 
         email = _clean_str(row.get("email")) if "email" in df.columns else None
+
+        # Duplicate guard within the same file.
+        name_key = (first_name.lower(), last_name.lower())
+        if email and email.lower() in seen_emails:
+            skipped += 1
+            skipped_rows.append({
+                "row": row_no,
+                "reason": f"duplicate email (also in row {seen_emails[email.lower()]})",
+            })
+            continue
+        if name_key in seen_names:
+            skipped += 1
+            skipped_rows.append({
+                "row": row_no,
+                "reason": f"duplicate name (also in row {seen_names[name_key]})",
+            })
+            continue
+        if email:
+            seen_emails[email.lower()] = row_no
+        seen_names[name_key] = row_no
 
         data = {
             "first_name": first_name,
@@ -125,4 +161,9 @@ async def import_people(file: UploadFile, db: Session = Depends(get_db)):
 
     db.commit()
 
-    return {"created": created, "updated": updated, "skipped": skipped}
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "skipped_rows": skipped_rows,
+    }

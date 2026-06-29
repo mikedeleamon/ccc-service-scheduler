@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.deps import get_db
-from app.models import Service
+from app.models import Service, Officiant_Assignment
 from app.schemas import ServiceCreate, ServiceUpdate, ServiceOut
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ServiceOut])
+@router.get("", response_model=List[ServiceOut])
 def get_services(parish: str = None, db: Session = Depends(get_db)):
     q = db.query(Service)
     if parish:
@@ -17,7 +17,7 @@ def get_services(parish: str = None, db: Session = Depends(get_db)):
     return q.order_by(Service.date).all()
 
 
-@router.post("/", response_model=ServiceOut, status_code=201)
+@router.post("", response_model=ServiceOut, status_code=201)
 def create_service(body: ServiceCreate, db: Session = Depends(get_db)):
     service = Service(**body.model_dump())
     db.add(service)
@@ -43,5 +43,9 @@ def delete_service(service_id: int, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
+    # Remove its officiant assignments first so we don't leave orphaned rows.
+    db.query(Officiant_Assignment).filter(
+        Officiant_Assignment.service_id == service_id
+    ).delete(synchronize_session=False)
     db.delete(service)
     db.commit()

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
@@ -22,6 +22,8 @@ import {
 
 type PreviewRow = Record<string, string | number | null>;
 
+const REQUIRED = ['first name', 'last name', 'rank'];
+
 export default function UploadPage() {
     const [file, setFile] = useState<File | null>(null);
     const [dragOver, setDragOver] = useState(false);
@@ -31,9 +33,51 @@ export default function UploadPage() {
     const [result, setResult] = useState<{
         success: boolean;
         message: string;
-        data?: { created?: number; updated?: number; skipped?: number };
+        data?: { created?: number; updated?: number; skipped?: number; skipped_rows?: { row: number; reason: string }[] };
     } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    /** Mirror the backend's skip rules so users see problems *before* importing. */
+    const skipPreview = useMemo(() => {
+        if (!preview) return { missingColumns: [] as string[], rows: [] as { row: number; reason: string }[] };
+
+        const headerMap = new Map(preview.headers.map((h) => [h.trim().toLowerCase(), h]));
+        const missingColumns = REQUIRED.filter((c) => !headerMap.has(c));
+        if (missingColumns.length > 0) return { missingColumns, rows: [] };
+
+        const get = (row: PreviewRow, key: string) => {
+            const orig = headerMap.get(key);
+            const v = orig ? row[orig] : null;
+            return v == null ? '' : String(v).trim();
+        };
+
+        const seenEmail = new Map<string, number>();
+        const seenName = new Map<string, number>();
+        const rows: { row: number; reason: string }[] = [];
+
+        preview.rows.forEach((row, i) => {
+            const rowNo = i + 2; // header + 1-based
+            const missing = REQUIRED.filter((c) => !get(row, c));
+            if (missing.length) {
+                rows.push({ row: rowNo, reason: `missing ${missing.join(', ')}` });
+                return;
+            }
+            const email = headerMap.has('email') ? get(row, 'email').toLowerCase() : '';
+            const nameKey = `${get(row, 'first name').toLowerCase()}|${get(row, 'last name').toLowerCase()}`;
+            if (email && seenEmail.has(email)) {
+                rows.push({ row: rowNo, reason: `duplicate email (also row ${seenEmail.get(email)})` });
+                return;
+            }
+            if (seenName.has(nameKey)) {
+                rows.push({ row: rowNo, reason: `duplicate name (also row ${seenName.get(nameKey)})` });
+                return;
+            }
+            if (email) seenEmail.set(email, rowNo);
+            seenName.set(nameKey, rowNo);
+        });
+
+        return { missingColumns, rows };
+    }, [preview]);
 
     const parseFile = (f: File) => {
         setParseError(null);
@@ -108,7 +152,7 @@ export default function UploadPage() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await api('/import/', { method: 'POST', body: formData });
+            const response = await api('/import/', { method: 'POST', body: formData, timeoutMs: 60_000 });
 
             if (response.error || response.detail) {
                 setResult({ success: false, message: response.error ?? response.detail });
@@ -320,6 +364,30 @@ export default function UploadPage() {
                             </table>
                         </div>
 
+                        {/* Pre-import validation warnings */}
+                        {skipPreview.missingColumns.length > 0 && (
+                            <div className='mt-4 rounded-xl border border-red-200/80 bg-red-50/90 p-4 dark:border-red-900/50 dark:bg-red-950/40'>
+                                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                                    Missing required column{skipPreview.missingColumns.length > 1 ? 's' : ''}: {skipPreview.missingColumns.join(', ')}
+                                </p>
+                                <p className='mt-1 text-xs text-red-700 dark:text-red-300'>
+                                    The import will be rejected. Add the column(s) and re-upload.
+                                </p>
+                            </div>
+                        )}
+                        {skipPreview.missingColumns.length === 0 && skipPreview.rows.length > 0 && (
+                            <div className='mt-4 rounded-xl border border-amber-200/80 bg-amber-50/90 p-4 dark:border-amber-900/40 dark:bg-amber-950/30'>
+                                <p className='text-sm font-medium text-amber-900 dark:text-amber-100'>
+                                    {skipPreview.rows.length} row{skipPreview.rows.length > 1 ? 's' : ''} will be skipped
+                                </p>
+                                <ul className='mt-2 max-h-32 space-y-0.5 overflow-y-auto text-xs text-amber-800 dark:text-amber-200'>
+                                    {skipPreview.rows.map((r) => (
+                                        <li key={r.row}>Row {r.row}: {r.reason}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         {/* Action row */}
                         <div className='mt-6 flex items-center justify-between gap-4'>
                             <p className='text-xs text-stone-400 dark:text-stone-500'>
@@ -328,7 +396,7 @@ export default function UploadPage() {
                             <button
                                 type='button'
                                 onClick={handleImport}
-                                disabled={uploading}
+                                disabled={uploading || skipPreview.missingColumns.length > 0}
                                 className={`${btnPrimary} shrink-0 disabled:pointer-events-none disabled:opacity-45`}
                             >
                                 {uploading ? (
@@ -363,10 +431,19 @@ export default function UploadPage() {
                             {result.message}
                         </p>
                         {result.success && result.data && (
-                            <p className='mt-2 text-xs text-emerald-700 dark:text-emerald-300'>
-                                {result.data.created ?? 0} created &middot; {result.data.updated ?? 0} updated
-                                {(result.data.skipped ?? 0) > 0 && ` · ${result.data.skipped} skipped (missing required fields)`}
-                            </p>
+                            <>
+                                <p className='mt-2 text-xs text-emerald-700 dark:text-emerald-300'>
+                                    {result.data.created ?? 0} created &middot; {result.data.updated ?? 0} updated
+                                    {(result.data.skipped ?? 0) > 0 && ` · ${result.data.skipped} skipped`}
+                                </p>
+                                {result.data.skipped_rows && result.data.skipped_rows.length > 0 && (
+                                    <ul className='mt-2 max-h-32 space-y-0.5 overflow-y-auto text-xs text-emerald-700/90 dark:text-emerald-300/90'>
+                                        {result.data.skipped_rows.map((r) => (
+                                            <li key={r.row}>Row {r.row}: {r.reason}</li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

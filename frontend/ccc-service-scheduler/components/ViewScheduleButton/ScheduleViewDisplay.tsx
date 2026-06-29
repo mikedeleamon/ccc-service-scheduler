@@ -98,6 +98,21 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
     const [editingId, setEditingId] = useState<number | null>(null);
     const [addingNew, setAddingNew] = useState(false);
     const [removingId, setRemovingId] = useState<number | null>(null);
+    const [busyId, setBusyId] = useState<number | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const runAction = async (id: number, action: () => Promise<void>) => {
+        setBusyId(id);
+        setActionError(null);
+        try {
+            await action();
+        } catch (e) {
+            setActionError(e instanceof Error ? e.message : 'Action failed. Please try again.');
+        } finally {
+            setBusyId(null);
+            setRemovingId(null);
+        }
+    };
 
     return (
         <section className='relative overflow-hidden rounded-2xl border border-stone-200/80 bg-stone-50/50 pl-4 dark:border-stone-600/50 dark:bg-stone-900/30'>
@@ -107,6 +122,10 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                     {day.dayOfWeek} — {day.date}
                     {day.serviceType ? ` · ${day.serviceType}${day.time ? ` · ${day.time}` : ''}` : ''}
                 </h3>
+
+                {actionError && (
+                    <p className='mt-2 text-xs text-red-600 dark:text-red-400'>{actionError}</p>
+                )}
 
                 {day.officiants.length === 0 && !addingNew && (
                     <p className='mt-2 text-sm text-stone-500 dark:text-stone-400'>No officiants assigned</p>
@@ -141,26 +160,28 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                                         <div className='flex shrink-0 flex-wrap items-center gap-1'>
                                             <button
                                                 type='button'
-                                                onClick={() => onToggleConfirm(o.id, !o.confirmed)}
-                                                className={btnTableSecondary}
+                                                onClick={() => runAction(o.id, () => onToggleConfirm(o.id, !o.confirmed))}
+                                                disabled={busyId === o.id}
+                                                className={`${btnTableSecondary} disabled:pointer-events-none disabled:opacity-50`}
                                             >
-                                                {o.confirmed ? 'Unconfirm' : 'Confirm'}
+                                                {busyId === o.id ? '…' : o.confirmed ? 'Unconfirm' : 'Confirm'}
                                             </button>
                                             <button
                                                 type='button'
                                                 onClick={() => { setEditingId(o.id); setRemovingId(null); setAddingNew(false); }}
-                                                className={btnTableSecondary}
+                                                disabled={busyId === o.id}
+                                                className={`${btnTableSecondary} disabled:pointer-events-none disabled:opacity-50`}
                                             >
                                                 Edit
                                             </button>
                                             {removingId === o.id ? (
                                                 <span className='flex items-center gap-1 text-xs'>
                                                     <span className='text-stone-500 dark:text-stone-400'>Sure?</span>
-                                                    <button type='button' onClick={() => { onRemove(o.id); setRemovingId(null); }} className={btnDanger}>Yes</button>
+                                                    <button type='button' onClick={() => runAction(o.id, () => onRemove(o.id))} disabled={busyId === o.id} className={`${btnDanger} disabled:pointer-events-none disabled:opacity-50`}>{busyId === o.id ? '…' : 'Yes'}</button>
                                                     <button type='button' onClick={() => setRemovingId(null)} className='text-xs text-stone-400 hover:text-stone-600'>No</button>
                                                 </span>
                                             ) : (
-                                                <button type='button' onClick={() => setRemovingId(o.id)} className={btnDanger}>Remove</button>
+                                                <button type='button' onClick={() => setRemovingId(o.id)} disabled={busyId === o.id} className={`${btnDanger} disabled:pointer-events-none disabled:opacity-50`}>Remove</button>
                                             )}
                                         </div>
                                     </div>
