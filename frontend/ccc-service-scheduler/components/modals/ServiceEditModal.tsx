@@ -42,9 +42,12 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
     const update = (field: keyof ServiceDraft, value: string) =>
         setDraft((d) => ({ ...d, [field]: value }));
 
+    const today = new Date().toISOString().slice(0, 10);
+
     const handleSubmit = async () => {
         const finalType = useCustom ? customType.trim() : draft.service_type;
         if (!draft.date) { setError('Date is required.'); return; }
+        if (draft.date < today) { setError('Service date cannot be in the past.'); return; }
         if (!finalType) { setError('Service type is required.'); return; }
 
         setSaving(true);
@@ -81,6 +84,7 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
                         <input
                             type='date'
                             value={draft.date}
+                            min={today}
                             onChange={(e) => update('date', e.target.value)}
                             className={inputBase}
                         />

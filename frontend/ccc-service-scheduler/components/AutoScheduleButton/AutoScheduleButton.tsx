@@ -39,6 +39,9 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
     const [endDate, setEndDate] = useState('');
     const [confirming, setConfirming] = useState(false);
 
+    const todayStr = new Date().toISOString().slice(0, 10);   // YYYY-MM-DD
+    const thisMonthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+
     const resolveRange = (): { start: string; end: string } | null => {
         if (!rangeMode) return monthRange(month);
         if (!startDate || !endDate) return null;
@@ -51,6 +54,12 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
         if (!range) {
             setStatus('error');
             setMessage('Choose a valid start and end date (end must not be before start).');
+            return;
+        }
+        if (range.start < todayStr) {
+            setStatus('error');
+            setMessage('Cannot generate a schedule for past dates. Please select today or a future date.');
+            setConfirming(false);
             return;
         }
         setConfirming(false);
@@ -111,6 +120,7 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
                         <input
                             type='month'
                             value={month}
+                            min={thisMonthStr}
                             onChange={(e) => setMonth(e.target.value)}
                             className={inputBase}
                         />
@@ -119,11 +129,11 @@ export default function AutoScheduleButton({ onSuccess }: Props) {
                     <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
                         <div className='space-y-1'>
                             <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>From</label>
-                            <input type='date' value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputBase} />
+                            <input type='date' value={startDate} min={todayStr} onChange={(e) => setStartDate(e.target.value)} className={inputBase} />
                         </div>
                         <div className='space-y-1'>
                             <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>To</label>
-                            <input type='date' value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputBase} />
+                            <input type='date' value={endDate} min={startDate || todayStr} onChange={(e) => setEndDate(e.target.value)} className={inputBase} />
                         </div>
                     </div>
                 )}

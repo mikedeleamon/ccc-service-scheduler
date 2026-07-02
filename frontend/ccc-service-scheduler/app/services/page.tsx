@@ -119,7 +119,6 @@ export default function ServicesPage() {
             const { default: jsPDF } = await import('jspdf');
             const { default: autoTable } = await import('jspdf-autotable');
 
-            // Fetch schedule data for the month (includes officiant assignments).
             const firstDay = `${pdfYear}-${String(pdfMonth + 1).padStart(2, '0')}-01`;
             const lastDay = new Date(pdfYear, pdfMonth + 1, 0).getDate();
             const lastDayStr = `${pdfYear}-${String(pdfMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -142,24 +141,83 @@ export default function ServicesPage() {
 
             const officiantFor = (officiants: RawOfficiant[], role: string) => {
                 const match = officiants.find((o) => o.role.toLowerCase() === role.toLowerCase());
-                return match ? match.personName : 'TBD';
+                return match ? match.personName.toUpperCase() : 'TBD';
             };
+
+            const formatTime12 = (time: string | null | undefined) => {
+                if (!time) return '—';
+                const [h, m] = time.split(':').map(Number);
+                const period = h >= 12 ? 'PM' : 'AM';
+                const hour = h % 12 || 12;
+                return m === 0 ? `${hour}${period}` : `${hour}:${String(m).padStart(2, '0')}${period}`;
+            };
+
+            // Group days by calendar week (Mon–Sun)
+            const getMondayOf = (dateStr: string) => {
+                const d = new Date(dateStr + 'T00:00:00');
+                const dow = d.getDay(); // 0=Sun
+                const diff = dow === 0 ? -6 : 1 - dow;
+                const mon = new Date(d);
+                mon.setDate(d.getDate() + diff);
+                return mon;
+            };
+            const weekLabel = (monday: Date) => {
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                const fmt = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                return `${fmt(monday)} – ${fmt(sunday)}`;
+            };
+            const weekMap = new Map<string, RawDay[]>();
+            for (const day of days) {
+                const key = getMondayOf(day.date).toISOString().slice(0, 10);
+                if (!weekMap.has(key)) weekMap.set(key, []);
+                weekMap.get(key)!.push(day);
+            }
+            const sortedWeeks = [...weekMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+            // Build table body with week group header rows
+            type CellDef = { content: string; colSpan?: number; styles?: object };
+            const body: (string | CellDef)[][] = [];
+            for (const [mondayKey, weekDays] of sortedWeeks) {
+                const monday = new Date(mondayKey + 'T00:00:00');
+                body.push([{
+                    content: weekLabel(monday),
+                    colSpan: 7,
+                    styles: { fillColor: [20, 20, 80], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', fontSize: 10 },
+                }]);
+                for (const day of weekDays) {
+                    const d = new Date(day.date + 'T00:00:00');
+                    const dayNum = `${d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()} ${ordinal(d.getDate()).toUpperCase()}`;
+                    const dayName = (day.dayOfWeek ?? d.toLocaleDateString('en-US', { weekday: 'long' })).toUpperCase();
+                    const officiants = day.officiants ?? [];
+                    body.push([
+                        dayName,
+                        dayNum,
+                        formatTime12(day.time),
+                        officiantFor(officiants, 'Service Conductor'),
+                        officiantFor(officiants, '1st lesson'),
+                        officiantFor(officiants, '2nd lesson'),
+                        officiantFor(officiants, 'Preacher'),
+                    ]);
+                }
+            }
 
             const doc = new jsPDF({ orientation: 'landscape' });
             const pageW = doc.internal.pageSize.getWidth();
 
-            // Title block
-            doc.setFontSize(13);
+            doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(20, 20, 80);
-            const title = `OFFICIATING DUTY ROSTER FOR ${MONTHS[pdfMonth].toUpperCase()} ${pdfYear}`;
-            doc.text(title, pageW / 2, 16, { align: 'center' });
+            doc.text(
+                `OFFICIATING DUTY ROSTER FOR ${MONTHS[pdfMonth].toUpperCase()} ${pdfYear}`,
+                pageW / 2, 16, { align: 'center' },
+            );
 
             if (parish) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                doc.text(parish.toUpperCase(), pageW / 2, 22, { align: 'center' });
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(80, 80, 80);
+                doc.text(`${parish.toUpperCase()} PARISH`, pageW / 2, 23, { align: 'center' });
             }
 
             if (days.length === 0) {
@@ -168,40 +226,26 @@ export default function ServicesPage() {
                 doc.text('No services found for this month.', 14, 36);
             } else {
                 autoTable(doc, {
-                    startY: parish ? 28 : 24,
+                    startY: parish ? 29 : 24,
                     head: [['SERVICE DAYS', 'DATES', 'TIME', 'SERVICE CONDUCTOR', 'FIRST LESSON', 'SECOND LESSON', 'PREACHER']],
-                    body: days.map((day) => {
-                        const d = new Date(day.date + 'T00:00:00');
-                        const dayNum = ordinal(d.getDate()).toUpperCase();
-                        const dayName = (day.dayOfWeek ?? d.toLocaleDateString('en-US', { weekday: 'long' })).toUpperCase();
-                        const officiants = day.officiants ?? [];
-                        return [
-                            dayName,
-                            dayNum,
-                            day.time ?? '—',
-                            officiantFor(officiants, 'Service Conductor'),
-                            officiantFor(officiants, '1st lesson'),
-                            officiantFor(officiants, '2nd lesson'),
-                            officiantFor(officiants, 'Preacher'),
-                        ];
-                    }),
-                    styles: { fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
-                    headStyles: { fillColor: [20, 20, 80], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+                    body,
+                    styles: { fontSize: 10, cellPadding: 3, fontStyle: 'bold', lineColor: [200, 200, 200], lineWidth: 0.3 },
+                    headStyles: { fillColor: [20, 20, 80], textColor: 255, fontStyle: 'bold', fontSize: 10, halign: 'center' },
                     alternateRowStyles: { fillColor: [245, 245, 255] },
                     columnStyles: {
-                        0: { cellWidth: 30 },
-                        1: { cellWidth: 18, halign: 'center' },
+                        0: { cellWidth: 32 },
+                        1: { cellWidth: 28, halign: 'center' },
                         2: { cellWidth: 18, halign: 'center' },
-                        3: { cellWidth: 47 },
-                        4: { cellWidth: 40 },
-                        5: { cellWidth: 40 },
-                        6: { cellWidth: 47 },
+                        3: { cellWidth: 50 },
+                        4: { cellWidth: 44 },
+                        5: { cellWidth: 44 },
+                        6: { cellWidth: 50 },
                     },
                 });
             }
 
             const footerY = doc.internal.pageSize.getHeight() - 10;
-            doc.setFontSize(8);
+            doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(120, 120, 120);
             doc.text('Prepared by the Secretary and Approved by the Shepherd.', 14, footerY);

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, Any
-from datetime import date  # still used by ServiceBase
+from datetime import date
 
 
 class PersonBase(BaseModel):
@@ -46,7 +46,12 @@ class ServiceBase(BaseModel):
 
 
 class ServiceCreate(ServiceBase):
-    pass
+    @field_validator('date')
+    @classmethod
+    def date_not_in_past(cls, v: date) -> date:
+        if v < date.today():
+            raise ValueError('Service date cannot be in the past.')
+        return v
 
 
 class ServiceUpdate(BaseModel):
@@ -54,6 +59,13 @@ class ServiceUpdate(BaseModel):
     service_type: Optional[str] = None
     time: Optional[str] = None
     parish: Optional[str] = None
+
+    @field_validator('date')
+    @classmethod
+    def date_not_in_past(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v < date.today():
+            raise ValueError('Service date cannot be in the past.')
+        return v
 
 
 class ServiceOut(ServiceBase):

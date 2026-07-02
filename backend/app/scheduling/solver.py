@@ -42,6 +42,7 @@ WEEKDAY_KEYS = [
 ]
 
 MONTHLY_PREACH_LEAD_CAP = 2
+MONTHLY_ROLE_CAP = 2  # max times one person may fill the same role in a calendar month
 
 
 def _gender(p: dict) -> str | None:
@@ -72,8 +73,9 @@ def generate_schedule(services: list[dict], people: list[dict]):
         top_rank = max(rank_number(p.get("rank")) for p in females)
         closing_pool_ids = {p["id"] for p in females if rank_number(p.get("rank")) == top_rank}
 
-    load: dict = defaultdict(int)          # person_id -> positions assigned (fairness)
-    preach_lead: dict = defaultdict(int)   # (person_id, (year, month)) -> count (rule 5)
+    load: dict = defaultdict(int)             # person_id -> positions assigned (fairness)
+    preach_lead: dict = defaultdict(int)      # (person_id, (year, month)) -> count (rule 5)
+    role_month_count: dict = defaultdict(int) # (person_id, role, ym) -> count (rule A)
 
     assignments: list[dict] = []
     unfilled: list[dict] = []
@@ -104,6 +106,14 @@ def generate_schedule(services: list[dict], people: list[dict]):
             })
             load[person["id"]] += 1
             used.add(person["id"])
+            role_month_count[(person["id"], role, ym)] += 1
+
+        def at_role_cap(p: dict, role: str) -> bool:
+            """True when this person has already filled this role twice this month.
+            Shepherd in charge is exempt from the per-role cap."""
+            if shepherd and p["id"] == shepherd["id"]:
+                return False
+            return role_month_count[(p["id"], role, ym)] >= MONTHLY_ROLE_CAP
 
         womens_roles = {SECOND_MEMBER_PRAYER, CLOSING_PRAYER}
 
@@ -125,8 +135,12 @@ def generate_schedule(services: list[dict], people: list[dict]):
                     reason = "all available men already assigned to other roles"
             unfilled.append({"service_id": svc["id"], "role": role, "reason": reason})
 
-        def pick_male(exclude: set):
-            cands = [p for p in males_avail if p["id"] not in exclude]
+        def pick_male(exclude: set, role: str = ""):
+            cands = [p for p in males_avail
+                     if p["id"] not in exclude
+                     and (not role or not at_role_cap(p, role))]
+            if not cands:
+                cands = [p for p in males_avail if p["id"] not in exclude]  # relax cap
             if not cands:
                 cands = males_avail[:]  # forced reuse when pool exhausted
             if not cands:
@@ -134,24 +148,43 @@ def generate_schedule(services: list[dict], people: list[dict]):
             cands.sort(key=lambda p: (load[p["id"]], rank_number(p.get("rank")), p["id"]))
             return cands[0]
 
-        def pick_two_males(exclude: set):
-            """Return (lower_rank, higher_rank) males for an ordered position pair."""
-            first = pick_male(exclude)
+        def pick_two_males(exclude: set, role1: str = "", role2: str = "",
+                           no_shepherd_in_first: bool = False):
+            """Return (lower_rank, higher_rank) males for an ordered position pair.
+            no_shepherd_in_first prevents the shepherd from filling role1 (Rule B)."""
+            shep_id = shepherd["id"] if shepherd else None
+            lower_exclude = exclude | ({shep_id} if no_shepherd_in_first and shep_id else set())
+
+            first = pick_male(lower_exclude, role1)
+            if first is None and no_shepherd_in_first:
+                first = pick_male(exclude, role1)  # relax shepherd exclusion if no one else
             if not first:
                 return None, None
-            second = pick_male(exclude | {first["id"]})
+
+            second = pick_male(exclude | {first["id"]}, role2)
             if not second:
                 return first, None
+
             pair = sorted([first, second], key=lambda p: rank_number(p.get("rank")))
+            # If rank sort puts shepherd in role1 position, swap to honour Rule B
+            if no_shepherd_in_first and shep_id and pair[0]["id"] == shep_id:
+                pair = [pair[1], pair[0]]
             return pair[0], pair[1]
 
-        def pick_preach_lead(exclude: set):
+        def pick_preach_lead(exclude: set, role: str):
             cands = [
                 p for p in males_avail
                 if p["id"] not in exclude
                 and preach_lead[(p["id"], ym)] < MONTHLY_PREACH_LEAD_CAP
+                and not at_role_cap(p, role)
             ]
-            if not cands:  # relax the cap rather than leave the service uncovered
+            if not cands:  # relax per-role cap
+                cands = [
+                    p for p in males_avail
+                    if p["id"] not in exclude
+                    and preach_lead[(p["id"], ym)] < MONTHLY_PREACH_LEAD_CAP
+                ]
+            if not cands:  # relax both caps
                 cands = [p for p in males_avail if p["id"] not in exclude]
             if not cands:
                 return None
@@ -217,23 +250,25 @@ def generate_schedule(services: list[dict], people: list[dict]):
                 if shepherd_preaches:
                     preacher = shepherd if shepherd_avail else highest_male(used)
                 else:
-                    preacher = pick_preach_lead(used)
+                    preacher = pick_preach_lead(used, PREACHER)
                 if preacher:
                     assign(preacher, PREACHER)
                     preach_lead[(preacher["id"], ym)] += 1
                 else:
                     fail(PREACHER)
             if SERVICE_CONDUCTOR in positions:
-                conductor = pick_preach_lead(used)
+                conductor = pick_preach_lead(used, SERVICE_CONDUCTOR)
                 if conductor:
                     assign(conductor, SERVICE_CONDUCTOR)
                     preach_lead[(conductor["id"], ym)] += 1
                 else:
                     fail(SERVICE_CONDUCTOR)
 
-        # --- Lessons (rule 4: 2nd lesson rank >= 1st lesson rank) ---
+        # --- Lessons (rule 4: 2nd lesson rank >= 1st lesson rank; Rule B: shepherd not in 1st) ---
         if FIRST_LESSON in positions or SECOND_LESSON in positions:
-            lower, higher = pick_two_males(used)
+            lower, higher = pick_two_males(
+                used, FIRST_LESSON, SECOND_LESSON, no_shepherd_in_first=True
+            )
             if FIRST_LESSON in positions:
                 if lower:
                     assign(lower, FIRST_LESSON)
@@ -246,9 +281,11 @@ def generate_schedule(services: list[dict], people: list[dict]):
                 else:
                     fail(SECOND_LESSON)
 
-        # --- Member prayers 1 & 3 (rule 3: 3rd prayer rank >= 1st prayer rank) ---
+        # --- Member prayers 1 & 3 (rule 3: 3rd rank >= 1st rank; Rule B: shepherd not in 1st) ---
         if FIRST_MEMBER_PRAYER in positions or THIRD_MEMBER_PRAYER in positions:
-            lower, higher = pick_two_males(used)
+            lower, higher = pick_two_males(
+                used, FIRST_MEMBER_PRAYER, THIRD_MEMBER_PRAYER, no_shepherd_in_first=True
+            )
             if FIRST_MEMBER_PRAYER in positions:
                 if lower:
                     assign(lower, FIRST_MEMBER_PRAYER)

@@ -127,6 +127,8 @@ def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depe
         end = body.end_date
     else:
         end = date(start.year, start.month, monthrange(start.year, start.month)[1])
+    if start < today:
+        raise HTTPException(status_code=400, detail="Cannot generate a schedule for past dates.")
     if end < start:
         raise HTTPException(status_code=400, detail="end_date must not be before start_date.")
     parish = body.parish
