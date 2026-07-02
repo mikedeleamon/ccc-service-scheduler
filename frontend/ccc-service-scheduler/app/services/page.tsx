@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useParish } from '@/lib/ParishContext';
 import {
     btnPrimary,
+    btnSecondary,
     heading1,
     lead,
     pageContent,
@@ -36,6 +37,11 @@ function formatDate(iso: string): string {
     return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 export default function ServicesPage() {
     const { parish } = useParish();
     const [services, setServices] = useState<Service[]>([]);
@@ -47,6 +53,12 @@ export default function ServicesPage() {
     const [deletingService, setDeletingService] = useState<Service | null>(null);
     const [page, setPage] = useState(1);
     const pageSize = 10;
+
+    // PDF state
+    const now = new Date();
+    const [pdfMonth, setPdfMonth] = useState(now.getMonth()); // 0-indexed
+    const [pdfYear, setPdfYear] = useState(now.getFullYear());
+    const [pdfGenerating, setPdfGenerating] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -101,7 +113,108 @@ export default function ServicesPage() {
         }
     };
 
+    const handleDownloadPdf = async () => {
+        setPdfGenerating(true);
+        try {
+            const { default: jsPDF } = await import('jspdf');
+            const { default: autoTable } = await import('jspdf-autotable');
+
+            // Fetch schedule data for the month (includes officiant assignments).
+            const firstDay = `${pdfYear}-${String(pdfMonth + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(pdfYear, pdfMonth + 1, 0).getDate();
+            const lastDayStr = `${pdfYear}-${String(pdfMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            const params = new URLSearchParams({ start_date: firstDay, end_date: lastDayStr });
+            if (parish) params.set('parish', parish);
+
+            const weeks = await api(`/schedule?${params.toString()}`);
+
+            type RawOfficiant = { role: string; personName: string };
+            type RawDay = { date: string; dayOfWeek?: string; time?: string | null; serviceType?: string; officiants: RawOfficiant[] };
+            const days: RawDay[] = (Array.isArray(weeks) ? weeks : [])
+                .flatMap((w: { days: RawDay[] }) => w.days ?? [])
+                .sort((a: RawDay, b: RawDay) => a.date.localeCompare(b.date));
+
+            const ordinal = (n: number) => {
+                const s = ['th', 'st', 'nd', 'rd'];
+                const v = n % 100;
+                return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+            };
+
+            const officiantFor = (officiants: RawOfficiant[], role: string) => {
+                const match = officiants.find((o) => o.role.toLowerCase() === role.toLowerCase());
+                return match ? match.personName : 'TBD';
+            };
+
+            const doc = new jsPDF({ orientation: 'landscape' });
+            const pageW = doc.internal.pageSize.getWidth();
+
+            // Title block
+            doc.setFontSize(13);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(20, 20, 80);
+            const title = `OFFICIATING DUTY ROSTER FOR ${MONTHS[pdfMonth].toUpperCase()} ${pdfYear}`;
+            doc.text(title, pageW / 2, 16, { align: 'center' });
+
+            if (parish) {
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(parish.toUpperCase(), pageW / 2, 22, { align: 'center' });
+            }
+
+            if (days.length === 0) {
+                doc.setFontSize(10);
+                doc.setTextColor(100, 100, 100);
+                doc.text('No services found for this month.', 14, 36);
+            } else {
+                autoTable(doc, {
+                    startY: parish ? 28 : 24,
+                    head: [['SERVICE DAYS', 'DATES', 'TIME', 'SERVICE CONDUCTOR', 'FIRST LESSON', 'SECOND LESSON', 'PREACHER']],
+                    body: days.map((day) => {
+                        const d = new Date(day.date + 'T00:00:00');
+                        const dayNum = ordinal(d.getDate()).toUpperCase();
+                        const dayName = (day.dayOfWeek ?? d.toLocaleDateString('en-US', { weekday: 'long' })).toUpperCase();
+                        const officiants = day.officiants ?? [];
+                        return [
+                            dayName,
+                            dayNum,
+                            day.time ?? '—',
+                            officiantFor(officiants, 'Service Conductor'),
+                            officiantFor(officiants, '1st lesson'),
+                            officiantFor(officiants, '2nd lesson'),
+                            officiantFor(officiants, 'Preacher'),
+                        ];
+                    }),
+                    styles: { fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
+                    headStyles: { fillColor: [20, 20, 80], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+                    alternateRowStyles: { fillColor: [245, 245, 255] },
+                    columnStyles: {
+                        0: { cellWidth: 30 },
+                        1: { cellWidth: 18, halign: 'center' },
+                        2: { cellWidth: 18, halign: 'center' },
+                        3: { cellWidth: 47 },
+                        4: { cellWidth: 40 },
+                        5: { cellWidth: 40 },
+                        6: { cellWidth: 47 },
+                    },
+                });
+            }
+
+            const footerY = doc.internal.pageSize.getHeight() - 10;
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(120, 120, 120);
+            doc.text('Prepared by the Secretary and Approved by the Shepherd.', 14, footerY);
+
+            doc.save(`duty-roster-${MONTHS[pdfMonth].toLowerCase()}-${pdfYear}.pdf`);
+        } finally {
+            setPdfGenerating(false);
+        }
+    };
+
     const blankDraft: ServiceDraft = { date: '', time: '', service_type: '' };
+
+    const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 1 + i);
 
     return (
         <SidebarLayout>
@@ -115,16 +228,53 @@ export default function ServicesPage() {
                                 Church services that need officiants assigned.
                             </p>
                         </div>
-                        <button
-                            type='button'
-                            onClick={() => setEditing(blankDraft)}
-                            className={btnPrimary}
-                        >
-                            <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4' aria-hidden>
-                                <path strokeLinecap='round' strokeLinejoin='round' d='M12 4.5v15m7.5-7.5h-15' />
-                            </svg>
-                            Add service
-                        </button>
+                        <div className='flex flex-wrap items-center gap-3'>
+                            <button
+                                type='button'
+                                onClick={() => setEditing(blankDraft)}
+                                className={btnPrimary}
+                            >
+                                <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4' aria-hidden>
+                                    <path strokeLinecap='round' strokeLinejoin='round' d='M12 4.5v15m7.5-7.5h-15' />
+                                </svg>
+                                Add service
+                            </button>
+
+                            {/* PDF download controls */}
+                            <div className='flex items-center gap-2'>
+                                <select
+                                    value={pdfMonth}
+                                    onChange={(e) => setPdfMonth(Number(e.target.value))}
+                                    className='rounded-xl border border-stone-300/90 bg-white px-2.5 py-2 text-sm text-stone-800 shadow-sm dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200'
+                                    aria-label='Month for PDF'
+                                >
+                                    {MONTHS.map((m, i) => (
+                                        <option key={m} value={i}>{m}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={pdfYear}
+                                    onChange={(e) => setPdfYear(Number(e.target.value))}
+                                    className='rounded-xl border border-stone-300/90 bg-white px-2.5 py-2 text-sm text-stone-800 shadow-sm dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200'
+                                    aria-label='Year for PDF'
+                                >
+                                    {yearOptions.map((y) => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    type='button'
+                                    onClick={handleDownloadPdf}
+                                    disabled={pdfGenerating || loading}
+                                    className={btnSecondary}
+                                >
+                                    <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' strokeWidth={1.5} stroke='currentColor' className='size-4' aria-hidden>
+                                        <path strokeLinecap='round' strokeLinejoin='round' d='M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3' />
+                                    </svg>
+                                    {pdfGenerating ? 'Generating…' : 'Download PDF'}
+                                </button>
+                            </div>
+                        </div>
                     </header>
                 </div>
 

@@ -20,6 +20,11 @@ class AutoScheduleRequest(BaseModel):
     end_date: Optional[date] = None
 
 
+class BulkDeleteRequest(BaseModel):
+    week_starts: List[date]
+    parish: Optional[str] = None
+
+
 def _week_bounds(d: date):
     monday = d - timedelta(days=d.weekday())
     sunday = monday + timedelta(days=6)
@@ -232,3 +237,28 @@ def auto_schedule(body: Optional[AutoScheduleRequest] = None, db: Session = Depe
         "weeks": _build_schedule_response(services, db),
         "unfilled": unfilled_out,
     }
+
+
+@router.delete("")
+def bulk_delete_schedules(body: BulkDeleteRequest, db: Session = Depends(get_db)):
+    if not body.week_starts:
+        return {"deleted": 0}
+
+    # Collect all service IDs that fall within any of the selected weeks.
+    svc_ids: list[int] = []
+    for week_start in body.week_starts:
+        week_end = week_start + timedelta(days=6)
+        q = db.query(Service.id).filter(Service.date >= week_start, Service.date <= week_end)
+        if body.parish:
+            q = q.filter(Service.parish == body.parish)
+        svc_ids.extend(row[0] for row in q.all())
+
+    if not svc_ids:
+        return {"deleted": 0}
+
+    db.query(Officiant_Assignment).filter(
+        Officiant_Assignment.service_id.in_(svc_ids)
+    ).delete(synchronize_session=False)
+    deleted = db.query(Service).filter(Service.id.in_(svc_ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}

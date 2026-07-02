@@ -8,9 +8,10 @@ type DeleteConfirmModalProps = {
     label: string;
     onCancel: () => void;
     onConfirm: () => void;
+    confirmDisabled?: boolean;
 };
 
-export default function DeleteConfirmModal({ label, onCancel, onConfirm }: DeleteConfirmModalProps) {
+export default function DeleteConfirmModal({ label, onCancel, onConfirm, confirmDisabled }: DeleteConfirmModalProps) {
     return (
         <ModalShell title='Confirm deletion' onClose={onCancel}>
             <div className='space-y-4'>
@@ -23,7 +24,7 @@ export default function DeleteConfirmModal({ label, onCancel, onConfirm }: Delet
                     <button type='button' onClick={onCancel} className={btnSecondary}>
                         Cancel
                     </button>
-                    <button type='button' onClick={onConfirm} className={btnDangerSolid}>
+                    <button type='button' onClick={onConfirm} disabled={confirmDisabled} className={`${btnDangerSolid} disabled:opacity-50`}>
                         Delete
                     </button>
                 </div>
