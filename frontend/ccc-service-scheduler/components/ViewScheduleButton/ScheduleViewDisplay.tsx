@@ -5,9 +5,11 @@ import * as XLSX from 'xlsx';
 import type { OfficiantAssignment, DaySchedule, ScheduleWeekDetail, ScheduleViewDisplayProps } from '@/types/scheduleTypes';
 import ModalShell from '@/components/modals/ModalShell';
 import { api } from '@/lib/api';
+import { getAssignmentWarnings } from '@/lib/eligibility';
+import { positionsFor } from '@/constants/positions';
 import { btnDanger, btnPrimary, btnSecondary, btnTableSecondary, inputBase, selectBase } from '@/lib/ui';
 
-type Person = { id: number; first_name: string; last_name: string; rank: string };
+type Person = { id: number; first_name: string; last_name: string; rank: string; gender?: string | null; availability?: unknown };
 
 function exportToExcel(schedule: ScheduleWeekDetail) {
     const rows: Record<string, string>[] = [];
@@ -28,16 +30,34 @@ function exportToExcel(schedule: ScheduleWeekDetail) {
 
 type AssignmentFormProps = {
     people: Person[];
+    day: DaySchedule;
     initial?: { personId: number; role: string };
+    editingId?: number;
     onSave: (personId: number, role: string) => Promise<void>;
     onCancel: () => void;
 };
 
-function AssignmentForm({ people, initial, onSave, onCancel }: AssignmentFormProps) {
+function AssignmentForm({ people, day, initial, editingId, onSave, onCancel }: AssignmentFormProps) {
     const [personId, setPersonId] = useState<number | ''>(initial?.personId ?? '');
     const [role, setRole] = useState(initial?.role ?? '');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const roleOptions = positionsFor(day.serviceType);
+    const selectedPerson = personId === '' ? undefined : people.find((p) => p.id === personId);
+    const warnings =
+        selectedPerson && role.trim()
+            ? getAssignmentWarnings(
+                { id: selectedPerson.id, gender: selectedPerson.gender, rank: selectedPerson.rank },
+                {
+                    role: role.trim(),
+                    date: day.date,
+                    officiants: day.officiants,
+                    editingAssignmentId: editingId,
+                    availability: selectedPerson.availability,
+                },
+            )
+            : [];
 
     const handleSubmit = async () => {
         if (personId === '') { setError('Select a person.'); return; }
@@ -72,13 +92,33 @@ function AssignmentForm({ people, initial, onSave, onCancel }: AssignmentFormPro
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     placeholder='Role…'
+                    list={roleOptions.length ? `roles-${day.serviceId}` : undefined}
                     className={inputBase}
                 />
+                {roleOptions.length > 0 && (
+                    <datalist id={`roles-${day.serviceId}`}>
+                        {roleOptions.map((r) => <option key={r} value={r} />)}
+                    </datalist>
+                )}
             </div>
+
+            {warnings.length > 0 && (
+                <ul className='space-y-1 rounded-lg border border-amber-300/70 bg-amber-50/90 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200'>
+                    {warnings.map((w, i) => (
+                        <li key={i} className='flex items-start gap-1.5'>
+                            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='mt-0.5 size-3.5 shrink-0' aria-hidden>
+                                <path fillRule='evenodd' d='M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z' clipRule='evenodd' />
+                            </svg>
+                            <span>{w}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
             <div className='flex justify-end gap-2'>
                 <button type='button' onClick={onCancel} className={btnSecondary}>Cancel</button>
                 <button type='button' onClick={handleSubmit} disabled={saving} className={`${btnPrimary} disabled:pointer-events-none disabled:opacity-45`}>
-                    {saving ? 'Saving…' : 'Save'}
+                    {saving ? 'Saving…' : warnings.length > 0 ? 'Save anyway' : 'Save'}
                 </button>
             </div>
         </div>
@@ -138,7 +178,9 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                                 {editingId === o.id ? (
                                     <AssignmentForm
                                         people={people}
+                                        day={day}
                                         initial={{ personId: o.personId, role: o.role }}
+                                        editingId={o.id}
                                         onSave={async (pId, r) => {
                                             await onEdit(o.id, pId, r);
                                             setEditingId(null);
@@ -194,6 +236,7 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                 {addingNew ? (
                     <AssignmentForm
                         people={people}
+                        day={day}
                         onSave={async (pId, r) => {
                             await onAdd(day.serviceId, pId, r);
                             setAddingNew(false);
@@ -222,49 +265,93 @@ export default function ScheduleViewDisplay({ schedule: initialSchedule, onClose
         api('/people').then((data) => setPeople(Array.isArray(data) ? data : [])).catch(() => {});
     }, []);
 
-    const refresh = async () => {
-        try {
-            const all = await api('/schedule');
-            const updated = Array.isArray(all) ? all.find((s: ScheduleWeekDetail) => s.id === schedule.id) : null;
-            if (updated) {
-                setSchedule(updated);
-                onScheduleChanged?.();
-            }
-        } catch {
-            // silently keep stale state
-        }
+    const personName = (personId: number) => {
+        const p = people.find((x) => x.id === personId);
+        return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
     };
 
+    // Optimistic local mutators — update state immediately, roll back on failure.
+    const mapOfficiant = (assignmentId: number, fn: (o: OfficiantAssignment) => OfficiantAssignment) =>
+        setSchedule((s) => ({
+            ...s,
+            days: s.days.map((d) => ({
+                ...d,
+                officiants: d.officiants.map((o) => (o.id === assignmentId ? fn(o) : o)),
+            })),
+        }));
+
     const handleAdd = async (serviceId: number, personId: number, role: string) => {
-        await api('/assignments', {
+        // Add can't be shown until the server assigns an id, so we don't render
+        // an optimistic row; we insert the real record from the response.
+        const created = await api('/assignments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ service_id: serviceId, person_id: personId, role }),
         });
-        await refresh();
+        const newOfficiant: OfficiantAssignment = {
+            id: created.id,
+            role: created.role,
+            personId: created.person_id,
+            personName: personName(created.person_id),
+            confirmed: !!created.confirmed,
+        };
+        setSchedule((s) => ({
+            ...s,
+            days: s.days.map((d) =>
+                d.serviceId === serviceId ? { ...d, officiants: [...d.officiants, newOfficiant] } : d,
+            ),
+        }));
+        onScheduleChanged?.();
     };
 
     const handleEdit = async (assignmentId: number, personId: number, role: string) => {
-        await api(`/assignments/${assignmentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ person_id: personId, role }),
-        });
-        await refresh();
+        const prev = schedule;
+        mapOfficiant(assignmentId, (o) => ({ ...o, personId, personName: personName(personId), role }));
+        try {
+            await api(`/assignments/${assignmentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ person_id: personId, role }),
+            });
+            onScheduleChanged?.();
+        } catch (e) {
+            setSchedule(prev);
+            throw e;
+        }
     };
 
     const handleRemove = async (assignmentId: number) => {
-        await api(`/assignments/${assignmentId}`, { method: 'DELETE' });
-        await refresh();
+        const prev = schedule;
+        setSchedule((s) => ({
+            ...s,
+            days: s.days.map((d) => ({
+                ...d,
+                officiants: d.officiants.filter((o) => o.id !== assignmentId),
+            })),
+        }));
+        try {
+            await api(`/assignments/${assignmentId}`, { method: 'DELETE' });
+            onScheduleChanged?.();
+        } catch (e) {
+            setSchedule(prev);
+            throw e;
+        }
     };
 
     const handleToggleConfirm = async (assignmentId: number, confirmed: boolean) => {
-        await api(`/assignments/${assignmentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ confirmed }),
-        });
-        await refresh();
+        const prev = schedule;
+        mapOfficiant(assignmentId, (o) => ({ ...o, confirmed }));
+        try {
+            await api(`/assignments/${assignmentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirmed }),
+            });
+            onScheduleChanged?.();
+        } catch (e) {
+            setSchedule(prev);
+            throw e;
+        }
     };
 
     return (

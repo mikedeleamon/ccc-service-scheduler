@@ -100,6 +100,35 @@ export default function ServicesPage() {
         }
     };
 
+    const handleSaveMany = async (drafts: ServiceDraft[]) => {
+        const results = await Promise.allSettled(
+            drafts.map((draft) =>
+                api('/services', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: draft.date,
+                        time: draft.time || null,
+                        service_type: draft.service_type,
+                        parish: parish || null,
+                    }),
+                }),
+            ),
+        );
+        const created = results
+            .filter((r): r is PromiseFulfilledResult<Service> => r.status === 'fulfilled')
+            .map((r) => r.value);
+        if (created.length > 0) {
+            setServices((prev) =>
+                [...prev, ...created].sort((a, b) => a.date.localeCompare(b.date)),
+            );
+        }
+        const failures = results.length - created.length;
+        if (failures > 0) {
+            throw new Error(`Added ${created.length} of ${results.length} services. ${failures} could not be created.`);
+        }
+    };
+
     const confirmDeleteService = async () => {
         if (!deletingService) return;
         const svc = deletingService;
@@ -474,6 +503,7 @@ export default function ServicesPage() {
                         service={editing}
                         onClose={() => setEditing(null)}
                         onSave={handleSave}
+                        onSaveMany={handleSaveMany}
                     />
                 )}
 

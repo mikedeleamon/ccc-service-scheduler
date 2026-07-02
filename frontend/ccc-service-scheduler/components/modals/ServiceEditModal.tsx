@@ -22,13 +22,59 @@ export type ServiceDraft = {
     service_type: string;
 };
 
+type Repeat = 'none' | 'weekly' | 'biweekly' | 'monthly';
+
+const REPEAT_OPTIONS: { value: Repeat; label: string }[] = [
+    { value: 'none', label: 'Does not repeat' },
+    { value: 'weekly', label: 'Every week' },
+    { value: 'biweekly', label: 'Every 2 weeks' },
+    { value: 'monthly', label: 'Every month (same date)' },
+];
+
+const MAX_OCCURRENCES = 60; // safety cap so a far-off "until" can't create thousands
+
+function pad(n: number): string {
+    return String(n).padStart(2, '0');
+}
+
+function toIso(d: Date): string {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function addMonthsClamped(d: Date, n: number): Date {
+    const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(d.getDate(), lastDay));
+    return target;
+}
+
+/** Every occurrence date (inclusive of the start) up to and including `untilIso`. */
+export function buildRecurringDates(startIso: string, repeat: Repeat, untilIso: string): string[] {
+    if (repeat === 'none') return [startIso];
+    const [y, m, day] = startIso.split('-').map(Number);
+    const start = new Date(y, m - 1, day);
+    const dates: string[] = [];
+    for (let i = 0; i < MAX_OCCURRENCES; i++) {
+        const d =
+            repeat === 'monthly'
+                ? addMonthsClamped(start, i)
+                : new Date(start.getFullYear(), start.getMonth(), start.getDate() + i * (repeat === 'weekly' ? 7 : 14));
+        const iso = toIso(d);
+        if (iso > untilIso) break;
+        dates.push(iso);
+    }
+    return dates;
+}
+
 type Props = {
     service: ServiceDraft;
     onClose: () => void;
     onSave: (service: ServiceDraft) => Promise<void>;
+    /** Called instead of onSave when a recurrence produces multiple services. */
+    onSaveMany?: (services: ServiceDraft[]) => Promise<void>;
 };
 
-export default function ServiceEditModal({ service, onClose, onSave }: Props) {
+export default function ServiceEditModal({ service, onClose, onSave, onSaveMany }: Props) {
     const [draft, setDraft] = useState<ServiceDraft>(service);
     const [customType, setCustomType] = useState(
         SERVICE_TYPES.includes(service.service_type) ? '' : service.service_type,
@@ -36,6 +82,8 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
     const [useCustom, setUseCustom] = useState(
         !!service.service_type && !SERVICE_TYPES.includes(service.service_type),
     );
+    const [repeat, setRepeat] = useState<Repeat>('none');
+    const [repeatUntil, setRepeatUntil] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -44,16 +92,32 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
 
     const today = new Date().toISOString().slice(0, 10);
 
+    const isNew = !service.id;
+    const recurring = isNew && repeat !== 'none';
+
+    // Live preview of how many services a recurrence will create.
+    const occurrences =
+        recurring && draft.date && repeatUntil && repeatUntil >= draft.date
+            ? buildRecurringDates(draft.date, repeat, repeatUntil)
+            : null;
+
     const handleSubmit = async () => {
         const finalType = useCustom ? customType.trim() : draft.service_type;
         if (!draft.date) { setError('Date is required.'); return; }
         if (draft.date < today) { setError('Service date cannot be in the past.'); return; }
         if (!finalType) { setError('Service type is required.'); return; }
+        if (recurring && !repeatUntil) { setError('Choose a date to repeat until.'); return; }
+        if (recurring && repeatUntil < draft.date) { setError('“Repeat until” must be on or after the start date.'); return; }
 
         setSaving(true);
         setError(null);
         try {
-            await onSave({ ...draft, service_type: finalType });
+            if (recurring && onSaveMany) {
+                const dates = buildRecurringDates(draft.date, repeat, repeatUntil);
+                await onSaveMany(dates.map((date) => ({ date, time: draft.time, service_type: finalType })));
+            } else {
+                await onSave({ ...draft, service_type: finalType });
+            }
             onClose();
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to save service.');
@@ -61,8 +125,6 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
             setSaving(false);
         }
     };
-
-    const isNew = !service.id;
 
     return (
         <ModalShell
@@ -135,6 +197,47 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
                     </button>
                 </div>
 
+                {isNew && (
+                    <div className='space-y-3 rounded-2xl border border-stone-200/80 bg-stone-50/60 p-3 dark:border-stone-700/50 dark:bg-stone-900/30'>
+                        <div className='space-y-1'>
+                            <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>
+                                Repeat
+                            </label>
+                            <select
+                                value={repeat}
+                                onChange={(e) => setRepeat(e.target.value as Repeat)}
+                                className={selectBase}
+                            >
+                                {REPEAT_OPTIONS.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {recurring && (
+                            <div className='space-y-1'>
+                                <label className='text-sm font-medium text-stone-700 dark:text-stone-300'>
+                                    Repeat until <span className='text-red-500'>*</span>
+                                </label>
+                                <input
+                                    type='date'
+                                    value={repeatUntil}
+                                    min={draft.date || today}
+                                    onChange={(e) => setRepeatUntil(e.target.value)}
+                                    className={inputBase}
+                                />
+                                {occurrences && (
+                                    <p className='pt-1 text-xs text-stone-500 dark:text-stone-400'>
+                                        {occurrences.length >= MAX_OCCURRENCES
+                                            ? `Creates the first ${MAX_OCCURRENCES} services (cap reached — narrow the range).`
+                                            : `Creates ${occurrences.length} service${occurrences.length !== 1 ? 's' : ''}.`}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className='flex justify-end gap-3 pt-2'>
                     <button type='button' onClick={onClose} className={btnSecondary}>
                         Cancel
@@ -145,7 +248,11 @@ export default function ServiceEditModal({ service, onClose, onSave }: Props) {
                         disabled={saving}
                         className={`${btnPrimary} disabled:pointer-events-none disabled:opacity-45`}
                     >
-                        {saving ? 'Saving…' : isNew ? 'Add service' : 'Save changes'}
+                        {saving
+                            ? 'Saving…'
+                            : recurring
+                                ? `Add ${occurrences ? occurrences.length : ''} services`.replace('  ', ' ')
+                                : isNew ? 'Add service' : 'Save changes'}
                     </button>
                 </div>
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import SidebarLayout from '@/components/SidebarLayout/SidebarLayout';
 import AutoScheduleButton from '@/components/AutoScheduleButton/AutoScheduleButton';
 import ScheduleViewDisplay from '@/components/ViewScheduleButton/ScheduleViewDisplay';
+import ScheduleCalendar from '@/components/ScheduleCalendar/ScheduleCalendar';
 import DeleteConfirmModal from '@/components/modals/DeleteConfirmModal';
 import type { ScheduleWeekDetail, ScheduleWeekSummary } from '@/types/scheduleTypes';
 import BackButton from '@/components/BackButton/BackButton';
@@ -44,6 +45,8 @@ export default function SchedulesPage() {
     const [viewingSchedule, setViewingSchedule] = useState<ScheduleWeekDetail | null>(null);
     const [page, setPage] = useState(1);
     const pageSize = 10;
+    const [view, setView] = useState<'list' | 'calendar'>('list');
+    const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
     // Bulk delete state
     const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -148,6 +151,32 @@ export default function SchedulesPage() {
                         </div>
                         <div className='flex flex-wrap items-center gap-3'>
                             <AutoScheduleButton />
+                            <div className='flex items-center gap-1 rounded-xl border border-stone-300/90 bg-white p-1 dark:border-stone-600 dark:bg-stone-900'>
+                                <button
+                                    type='button'
+                                    onClick={() => setView('list')}
+                                    aria-pressed={view === 'list'}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                                        view === 'list'
+                                            ? 'bg-indigo-700 text-white shadow-sm dark:bg-indigo-500'
+                                            : 'text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800'
+                                    }`}
+                                >
+                                    List
+                                </button>
+                                <button
+                                    type='button'
+                                    onClick={() => setView('calendar')}
+                                    aria-pressed={view === 'calendar'}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                                        view === 'calendar'
+                                            ? 'bg-indigo-700 text-white shadow-sm dark:bg-indigo-500'
+                                            : 'text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800'
+                                    }`}
+                                >
+                                    Calendar
+                                </button>
+                            </div>
                             {selected.size > 0 && (
                                 <button
                                     type='button'
@@ -170,6 +199,14 @@ export default function SchedulesPage() {
                     </div>
                 )}
 
+                {view === 'calendar' ? (
+                    <ScheduleCalendar
+                        parish={parish}
+                        onSelectWeek={setViewingSchedule}
+                        refreshKey={calendarRefreshKey}
+                    />
+                ) : (
+                <>
                 {loading && (
                     <div className={tableWrap}>
                         <table className={table}>
@@ -309,11 +346,14 @@ export default function SchedulesPage() {
                         </div>
                     </div>
                 )}
+                </>
+                )}
 
                 {viewingSchedule && (
                     <ScheduleViewDisplay
                         schedule={viewingSchedule}
                         onClose={() => setViewingSchedule(null)}
+                        onScheduleChanged={() => { load(); setCalendarRefreshKey((k) => k + 1); }}
                     />
                 )}
 

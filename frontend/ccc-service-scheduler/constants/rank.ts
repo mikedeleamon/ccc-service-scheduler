@@ -75,6 +75,15 @@ export const RANK_NUMBER: Record<Rank, number> = {
     [Rank.SUPERIOR_SENIOR_PROPHETESS]: 5,
 };
 
+/** Reverse lookup: the gender implied by a rank title, or null if unknown. */
+export function rankGender(rank?: string | null): Gender | null {
+    if (!rank) return null;
+    const r = rank.trim();
+    if ((RANKS_BY_GENDER[Gender.MALE] as string[]).includes(r)) return Gender.MALE;
+    if ((RANKS_BY_GENDER[Gender.FEMALE] as string[]).includes(r)) return Gender.FEMALE;
+    return null;
+}
+
 // Dropdown options per gender (highest -> lowest, with parallel ranks after).
 export const RANKS_BY_GENDER: Record<Gender, Rank[]> = {
     [Gender.MALE]: [
