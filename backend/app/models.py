@@ -34,3 +34,13 @@ class Officiant_Assignment(Base):
     person_id = Column(Integer, ForeignKey("people.id"))
     role = Column(String)
     confirmed = Column(Boolean, default=False)
+
+class Lesson(Base):
+    """Bible readings for a service date. Universal across parishes — keyed
+    by date only, since exactly one service type occurs on any given date."""
+    __tablename__ = "lessons"
+
+    id = Column(Integer, primary_key=True)
+    date = Column(Date, unique=True, nullable=False)
+    first_lesson = Column(String, nullable=True)
+    second_lesson = Column(String, nullable=True)

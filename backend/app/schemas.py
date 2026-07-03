@@ -1,6 +1,11 @@
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, Any
 from datetime import date
+# Imported under an alias for use inside `Optional[...] = None` field declarations:
+# a field literally named `date` with a default binds `None` to that name in the
+# class namespace *before* its own annotation is evaluated, so `Optional[date]`
+# would resolve the inner `date` to that `None` instead of this import.
+from datetime import date as _date
 
 
 class PersonBase(BaseModel):
@@ -55,7 +60,7 @@ class ServiceCreate(ServiceBase):
 
 
 class ServiceUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[_date] = None
     service_type: Optional[str] = None
     time: Optional[str] = None
     parish: Optional[str] = None
@@ -92,3 +97,25 @@ class AssignmentOut(BaseModel):
     role: str
     confirmed: bool
     model_config = ConfigDict(from_attributes=True)
+
+
+class LessonCreate(BaseModel):
+    date: date
+    first_lesson: Optional[str] = None
+    second_lesson: Optional[str] = None
+
+
+class LessonUpdate(BaseModel):
+    date: Optional[_date] = None
+    first_lesson: Optional[str] = None
+    second_lesson: Optional[str] = None
+
+
+class LessonOut(BaseModel):
+    id: int
+    date: date
+    dayOfWeek: str
+    time: Optional[str] = None
+    serviceType: Optional[str] = None
+    first_lesson: Optional[str] = None
+    second_lesson: Optional[str] = None

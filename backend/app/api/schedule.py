@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.deps import get_db
-from app.models import Service, Person, Officiant_Assignment
+from app.models import Service, Person, Officiant_Assignment, Lesson
 from app.scheduling.calendar import generate_services
 from app.scheduling.solver import generate_schedule
 
@@ -58,6 +58,13 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
     for a in all_assignments:
         assignments_by_svc[a.service_id].append(a)
 
+    # Bulk-load lessons (universal, keyed by date) for every date in range.
+    svc_dates = {s.date for s in services}
+    lessons_by_date: dict = {}
+    if svc_dates:
+        lessons = db.query(Lesson).filter(Lesson.date.in_(svc_dates)).all()
+        lessons_by_date = {l.date: l for l in lessons}
+
     # Group services into calendar weeks.
     weeks: dict = defaultdict(list)
     for svc in services:
@@ -79,6 +86,7 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
                 }
                 for a in assignments_by_svc[svc.id]
             ]
+            lesson = lessons_by_date.get(svc.date)
             days.append({
                 "serviceId": svc.id,
                 "dayOfWeek": svc.date.strftime("%A"),
@@ -86,6 +94,8 @@ def _build_schedule_response(services: list, db: Session) -> List[dict]:
                 "time": svc.time,
                 "serviceType": svc.service_type,
                 "officiants": officiants,
+                "firstLessonVerse": lesson.first_lesson if lesson else None,
+                "secondLessonVerse": lesson.second_lesson if lesson else None,
             })
         result.append({
             "id": week_start.isoformat(),

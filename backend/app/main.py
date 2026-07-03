@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.api import people, services, schedule, import_excel, assignments
+from app.api import people, services, schedule, import_excel, assignments, lessons
 from app.deps import get_db
 from app.models import Person
 
@@ -21,6 +21,7 @@ app.include_router(services.router, prefix="/services")
 app.include_router(schedule.router, prefix="/schedule")
 app.include_router(import_excel.router, prefix="/import")
 app.include_router(assignments.router, prefix="/assignments")
+app.include_router(lessons.router, prefix="/lessons")
 
 
 @app.get("/parishes", response_model=List[str])

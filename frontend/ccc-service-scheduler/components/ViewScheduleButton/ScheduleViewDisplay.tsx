@@ -11,14 +11,20 @@ import { btnDanger, btnPrimary, btnSecondary, btnTableSecondary, inputBase, sele
 
 type Person = { id: number; first_name: string; last_name: string; rank: string; gender?: string | null; availability?: unknown };
 
+function verseFor(day: DaySchedule, role: string): string {
+    if (role.toLowerCase() === '1st lesson') return day.firstLessonVerse ?? '';
+    if (role.toLowerCase() === '2nd lesson') return day.secondLessonVerse ?? '';
+    return '';
+}
+
 function exportToExcel(schedule: ScheduleWeekDetail) {
     const rows: Record<string, string>[] = [];
     for (const day of schedule.days) {
         if (day.officiants.length === 0) {
-            rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: '', Person: '', Confirmed: '' });
+            rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: '', Person: '', Verse: '', Confirmed: '' });
         } else {
             for (const o of day.officiants) {
-                rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: o.role, Person: o.personName, Confirmed: o.confirmed ? 'Yes' : 'No' });
+                rows.push({ Day: day.dayOfWeek, Date: day.date, 'Service Type': day.serviceType ?? '', Time: day.time ?? '', Role: o.role, Person: o.personName, Verse: verseFor(day, o.role), Confirmed: o.confirmed ? 'Yes' : 'No' });
             }
         }
     }
@@ -173,7 +179,13 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
 
                 {day.officiants.length > 0 && (
                     <ul className='mt-3 space-y-2'>
-                        {day.officiants.map((o: OfficiantAssignment) => (
+                        {day.officiants.map((o: OfficiantAssignment) => {
+                            const verse = o.role.toLowerCase() === '1st lesson'
+                                ? day.firstLessonVerse
+                                : o.role.toLowerCase() === '2nd lesson'
+                                    ? day.secondLessonVerse
+                                    : null;
+                            return (
                             <li key={o.id} className='rounded-xl border border-stone-200/60 bg-white/90 px-3 py-2.5 dark:border-stone-600/40 dark:bg-stone-950/40'>
                                 {editingId === o.id ? (
                                     <AssignmentForm
@@ -189,6 +201,7 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                                     />
                                 ) : (
                                     <div className='flex items-center justify-between gap-4 text-sm'>
+                                        <div className='min-w-0'>
                                         <div className='flex flex-wrap items-center gap-2'>
                                             <span className='font-medium text-indigo-900 dark:text-indigo-200'>{o.role}</span>
                                             <span className='text-stone-400 dark:text-stone-500'>·</span>
@@ -198,6 +211,10 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                                                     Confirmed
                                                 </span>
                                             )}
+                                        </div>
+                                        {verse && (
+                                            <p className='mt-0.5 truncate text-xs italic text-stone-500 dark:text-stone-400'>{verse}</p>
+                                        )}
                                         </div>
                                         <div className='flex shrink-0 flex-wrap items-center gap-1'>
                                             <button
@@ -229,7 +246,8 @@ function DaySection({ day, people, onAdd, onEdit, onRemove, onToggleConfirm }: D
                                     </div>
                                 )}
                             </li>
-                        ))}
+                            );
+                        })}
                     </ul>
                 )}
 

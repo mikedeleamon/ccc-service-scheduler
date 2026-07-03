@@ -13,6 +13,8 @@ export type DaySchedule = {
   time?: string | null;
   serviceType?: string;
   officiants: OfficiantAssignment[];
+  firstLessonVerse?: string | null;
+  secondLessonVerse?: string | null;
 };
 
 export type ScheduleWeekDetail = {

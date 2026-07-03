@@ -157,7 +157,10 @@ export default function ServicesPage() {
             const weeks = await api(`/schedule?${params.toString()}`);
 
             type RawOfficiant = { role: string; personName: string };
-            type RawDay = { date: string; dayOfWeek?: string; time?: string | null; serviceType?: string; officiants: RawOfficiant[] };
+            type RawDay = {
+                date: string; dayOfWeek?: string; time?: string | null; serviceType?: string; officiants: RawOfficiant[];
+                firstLessonVerse?: string | null; secondLessonVerse?: string | null;
+            };
             const days: RawDay[] = (Array.isArray(weeks) ? weeks : [])
                 .flatMap((w: { days: RawDay[] }) => w.days ?? [])
                 .sort((a: RawDay, b: RawDay) => a.date.localeCompare(b.date));
@@ -171,6 +174,11 @@ export default function ServicesPage() {
             const officiantFor = (officiants: RawOfficiant[], role: string) => {
                 const match = officiants.find((o) => o.role.toLowerCase() === role.toLowerCase());
                 return match ? match.personName.toUpperCase() : 'TBD';
+            };
+
+            const lessonCellFor = (officiants: RawOfficiant[], role: string, verse: string | null | undefined) => {
+                const name = officiantFor(officiants, role);
+                return verse ? `${name}\n${verse}` : name;
             };
 
             const formatTime12 = (time: string | null | undefined) => {
@@ -224,8 +232,8 @@ export default function ServicesPage() {
                         dayNum,
                         formatTime12(day.time),
                         officiantFor(officiants, 'Service Conductor'),
-                        officiantFor(officiants, '1st lesson'),
-                        officiantFor(officiants, '2nd lesson'),
+                        lessonCellFor(officiants, '1st lesson', day.firstLessonVerse),
+                        lessonCellFor(officiants, '2nd lesson', day.secondLessonVerse),
                         officiantFor(officiants, 'Preacher'),
                     ]);
                 }

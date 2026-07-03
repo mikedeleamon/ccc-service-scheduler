@@ -43,7 +43,7 @@ export const lead =
     'text-base leading-relaxed text-stone-700 dark:text-stone-400 sm:text-lg';
 
 export const inputBase =
-    'w-full rounded-2xl border border-stone-300/90 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-500';
+    'w-full rounded-2xl border border-stone-300/90 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-500 dark:[color-scheme:dark]';
 
 export const selectBase =
     'w-full rounded-2xl border border-stone-300/90 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100';
